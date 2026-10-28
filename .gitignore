@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# reportgen
+.reportgen/
+examples/reports/*
+!examples/reports/sales-report-sample.pdf
+!examples/reports/sales-report-sample.html
+!examples/reports/sales-report-sample.xlsx
+*.sqlite-journal
