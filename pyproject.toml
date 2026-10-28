@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automatic-report-generator"
+version = "0.1.0"
+description = "Automate report generation from CSV, Excel, JSON, and database sources with customizable templates, data visualization, and PDF, HTML, and Excel exports."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Theron Radley" },
+]
+keywords = ["reporting", "pdf", "excel", "csv", "automation", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Utilities",
+]
+# The product targets Python 3.12+; 3.11 is kept as the floor so the
+# toolchain also runs on widely deployed LTS interpreters. CI tests 3.11-3.13.
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "pandas>=2.1",
+    "openpyxl>=3.1",
+    "reportlab>=4.0",
+    "Jinja2>=3.1",
+    "matplotlib>=3.8",
+    "pydantic>=2.5",
+    "SQLAlchemy>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+reportgen = "reportgen.cli.app:main"
+
+[project.urls]
+Homepage = "https://github.com/TheronRadley/automatic-report-generator"
+Repository = "https://github.com/TheronRadley/automatic-report-generator"
+Issues = "https://github.com/TheronRadley/automatic-report-generator/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+reportgen = ["exporters/templates/*.j2", "exporters/templates/*.html", "exporters/templates/*.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "postgres: tests that require a live PostgreSQL server (deselected by default)",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's documented API uses Option()/Argument() calls as defaults.
+"src/reportgen/cli/*.py" = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.coverage.run]
+source = ["src/reportgen"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
