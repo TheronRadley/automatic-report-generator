@@ -1,0 +1,15 @@
+# General-purpose data analysis — works with any tabular dataset.
+version: 1
+report:
+  title: Data Analysis Report
+  subtitle: Synthetic sales data — for demonstration only
+  template: general
+  theme: default
+sources:
+  - name: data
+    type: csv
+    path: ../data/synthetic_sales.csv
+exports:
+  output_dir: ../reports
+  filename: data-analysis-{date}
+  formats: [pdf, html, xlsx]

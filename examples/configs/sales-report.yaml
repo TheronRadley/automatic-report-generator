@@ -1,0 +1,72 @@
+# Sales analysis report — synthetic example data.
+# Generate with: reportgen generate examples/configs/sales-report.yaml --all --overwrite
+version: 1
+report:
+  title: Sales Analysis Report
+  subtitle: Synthetic sales data — for demonstration only
+  author: Example Analytics Team
+  organization: Example Co
+  template: sales
+  theme: default
+  summary: >-
+    This report summarises {total_orders} synthetic orders totalling
+    {total_revenue} in revenue across {regions} regions. The average
+    order value was {average_order_value} with {total_units} units sold.
+  methodology: >-
+    Revenue is taken from the source file (quantity × unit price at order
+    time). Monthly figures group orders by calendar month of the order date.
+sources:
+  - name: sales
+    type: csv
+    path: ../data/synthetic_sales.csv
+    expected_columns: [date, region, product, category, quantity, unit_price, revenue]
+processing:
+  - dataset: sales
+    output: monthly_revenue
+    steps:
+      - op: date_normalize
+        column: date
+        truncate: month
+      - op: group_aggregate
+        group_by: [date]
+        aggregations: {revenue: sum, quantity: sum}
+      - op: sort
+        by: [date]
+  - dataset: sales
+    output: revenue_by_region
+    steps:
+      - op: group_aggregate
+        group_by: [region]
+        aggregations: {revenue: sum, quantity: sum}
+        sort_by: [revenue]
+  - dataset: sales
+    output: revenue_by_product
+    steps:
+      - op: group_aggregate
+        group_by: [product]
+        aggregations: {revenue: sum}
+        sort_by: [revenue]
+metrics:
+  - {name: total_revenue, label: Total revenue, dataset: sales, aggregation: sum, column: revenue, format: currency}
+  - {name: total_orders, label: Orders, dataset: sales, aggregation: count, format: integer}
+  - {name: average_order_value, label: Average order value, dataset: sales, aggregation: mean, column: revenue, format: currency}
+  - {name: total_units, label: Units sold, dataset: sales, aggregation: sum, column: quantity, format: integer}
+  - {name: regions, label: Regions, dataset: sales, aggregation: nunique, column: region, format: integer}
+sections:
+  - {title: Key metrics, type: metrics}
+  - title: Monthly revenue trend
+    type: chart
+    dataset: monthly_revenue
+    chart: {type: timeseries, x: date, y: revenue, title: Revenue by month, y_label: Revenue}
+  - title: Revenue by region
+    type: chart
+    dataset: revenue_by_region
+    chart: {type: bar, x: region, y: revenue, title: Revenue by region, y_label: Revenue}
+  - {title: Regional detail, type: table, dataset: revenue_by_region}
+  - {title: Product detail, type: table, dataset: revenue_by_product}
+  - {title: Sales records, type: table, dataset: sales, max_rows: 25}
+exports:
+  output_dir: ../reports
+  filename: sales-report-{date}
+  formats: [pdf, html, xlsx]
+  overwrite: false

@@ -1,0 +1,607 @@
+{
+  "meta": {
+    "synthetic": true
+  },
+  "orders": [
+    {
+      "order_id": 1001,
+      "date": "2025-01-01",
+      "region": "Central",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 9,
+      "unit_price": 6.85,
+      "revenue": 61.65
+    },
+    {
+      "order_id": 1002,
+      "date": "2025-01-02",
+      "region": "East",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 2,
+      "unit_price": 57.03,
+      "revenue": 114.06
+    },
+    {
+      "order_id": 1003,
+      "date": "2025-01-03",
+      "region": "North",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 11,
+      "unit_price": 201.26,
+      "revenue": 2213.86
+    },
+    {
+      "order_id": 1004,
+      "date": "2025-01-04",
+      "region": "North",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 11,
+      "unit_price": 35.91,
+      "revenue": 395.01
+    },
+    {
+      "order_id": 1005,
+      "date": "2025-01-04",
+      "region": "North",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 3,
+      "unit_price": 176.6,
+      "revenue": 529.8
+    },
+    {
+      "order_id": 1006,
+      "date": "2025-01-04",
+      "region": "Central",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 3,
+      "unit_price": 19.39,
+      "revenue": 58.17
+    },
+    {
+      "order_id": 1007,
+      "date": "2025-01-05",
+      "region": "Central",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 1,
+      "unit_price": 33.33,
+      "revenue": 33.33
+    },
+    {
+      "order_id": 1008,
+      "date": "2025-01-05",
+      "region": "Central",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 6,
+      "unit_price": 6.77,
+      "revenue": 40.62
+    },
+    {
+      "order_id": 1009,
+      "date": "2025-01-05",
+      "region": "East",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 12,
+      "unit_price": 45.99,
+      "revenue": 551.88
+    },
+    {
+      "order_id": 1010,
+      "date": "2025-01-06",
+      "region": "South",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 4,
+      "unit_price": 18.23,
+      "revenue": 72.92
+    },
+    {
+      "order_id": 1011,
+      "date": "2025-01-06",
+      "region": "Central",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 8,
+      "unit_price": 183.47,
+      "revenue": 1467.76
+    },
+    {
+      "order_id": 1012,
+      "date": "2025-01-07",
+      "region": "East",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 12,
+      "unit_price": 51.0,
+      "revenue": 612.0
+    },
+    {
+      "order_id": 1013,
+      "date": "2025-01-08",
+      "region": "West",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 3,
+      "unit_price": 6.7,
+      "revenue": 20.1
+    },
+    {
+      "order_id": 1014,
+      "date": "2025-01-08",
+      "region": "Central",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 6,
+      "unit_price": 17.7,
+      "revenue": 106.2
+    },
+    {
+      "order_id": 1015,
+      "date": "2025-01-08",
+      "region": "North",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 12,
+      "unit_price": 204.41,
+      "revenue": 2452.92
+    },
+    {
+      "order_id": 1016,
+      "date": "2025-01-09",
+      "region": "East",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 10,
+      "unit_price": 32.56,
+      "revenue": 325.6
+    },
+    {
+      "order_id": 1017,
+      "date": "2025-01-09",
+      "region": "West",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 3,
+      "unit_price": 46.86,
+      "revenue": 140.58
+    },
+    {
+      "order_id": 1018,
+      "date": "2025-01-09",
+      "region": "Central",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 1,
+      "unit_price": 181.78,
+      "revenue": 181.78
+    },
+    {
+      "order_id": 1019,
+      "date": "2025-01-10",
+      "region": "West",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 12,
+      "unit_price": 51.45,
+      "revenue": 617.4
+    },
+    {
+      "order_id": 1020,
+      "date": "2025-01-10",
+      "region": "Central",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 10,
+      "unit_price": 53.86,
+      "revenue": 538.6
+    },
+    {
+      "order_id": 1021,
+      "date": "2025-01-11",
+      "region": "East",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 3,
+      "unit_price": 19.87,
+      "revenue": 59.61
+    },
+    {
+      "order_id": 1022,
+      "date": "2025-01-12",
+      "region": "West",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 4,
+      "unit_price": 19.05,
+      "revenue": 76.2
+    },
+    {
+      "order_id": 1023,
+      "date": "2025-01-12",
+      "region": "North",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 10,
+      "unit_price": 177.33,
+      "revenue": 1773.3
+    },
+    {
+      "order_id": 1024,
+      "date": "2025-01-13",
+      "region": "South",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 3,
+      "unit_price": 6.82,
+      "revenue": 20.46
+    },
+    {
+      "order_id": 1025,
+      "date": "2025-01-13",
+      "region": "Central",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 6,
+      "unit_price": 199.29,
+      "revenue": 1195.74
+    },
+    {
+      "order_id": 1026,
+      "date": "2025-01-14",
+      "region": "South",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 5,
+      "unit_price": 35.77,
+      "revenue": 178.85
+    },
+    {
+      "order_id": 1027,
+      "date": "2025-01-14",
+      "region": "South",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 7,
+      "unit_price": 35.59,
+      "revenue": 249.13
+    },
+    {
+      "order_id": 1028,
+      "date": "2025-01-15",
+      "region": "East",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 12,
+      "unit_price": 7.67,
+      "revenue": 92.04
+    },
+    {
+      "order_id": 1029,
+      "date": "2025-01-16",
+      "region": "Central",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 9,
+      "unit_price": 17.52,
+      "revenue": 157.68
+    },
+    {
+      "order_id": 1030,
+      "date": "2025-01-16",
+      "region": "North",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 10,
+      "unit_price": 49.39,
+      "revenue": 493.9
+    },
+    {
+      "order_id": 1031,
+      "date": "2025-01-17",
+      "region": "West",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 7,
+      "unit_price": 58.26,
+      "revenue": 407.82
+    },
+    {
+      "order_id": 1032,
+      "date": "2025-01-17",
+      "region": "Central",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 9,
+      "unit_price": 60.96,
+      "revenue": 548.64
+    },
+    {
+      "order_id": 1033,
+      "date": "2025-01-18",
+      "region": "Central",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 11,
+      "unit_price": 179.37,
+      "revenue": 1973.07
+    },
+    {
+      "order_id": 1034,
+      "date": "2025-01-19",
+      "region": "Central",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 9,
+      "unit_price": 36.33,
+      "revenue": 326.97
+    },
+    {
+      "order_id": 1035,
+      "date": "2025-01-19",
+      "region": "South",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 10,
+      "unit_price": 32.92,
+      "revenue": 329.2
+    },
+    {
+      "order_id": 1036,
+      "date": "2025-01-20",
+      "region": "East",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 2,
+      "unit_price": 34.92,
+      "revenue": 69.84
+    },
+    {
+      "order_id": 1037,
+      "date": "2025-01-20",
+      "region": "South",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 10,
+      "unit_price": 56.08,
+      "revenue": 560.8
+    },
+    {
+      "order_id": 1038,
+      "date": "2025-01-21",
+      "region": "West",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 6,
+      "unit_price": 47.91,
+      "revenue": 287.46
+    },
+    {
+      "order_id": 1039,
+      "date": "2025-01-21",
+      "region": "East",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 11,
+      "unit_price": 58.02,
+      "revenue": 638.22
+    },
+    {
+      "order_id": 1040,
+      "date": "2025-01-21",
+      "region": "Central",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 8,
+      "unit_price": 55.24,
+      "revenue": 441.92
+    },
+    {
+      "order_id": 1041,
+      "date": "2025-01-22",
+      "region": "West",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 11,
+      "unit_price": 194.17,
+      "revenue": 2135.87
+    },
+    {
+      "order_id": 1042,
+      "date": "2025-01-22",
+      "region": "Central",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 3,
+      "unit_price": 201.49,
+      "revenue": 604.47
+    },
+    {
+      "order_id": 1043,
+      "date": "2025-01-22",
+      "region": "West",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 1,
+      "unit_price": 34.72,
+      "revenue": 34.72
+    },
+    {
+      "order_id": 1044,
+      "date": "2025-01-23",
+      "region": "North",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 11,
+      "unit_price": 7.08,
+      "revenue": 77.88
+    },
+    {
+      "order_id": 1045,
+      "date": "2025-01-23",
+      "region": "Central",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 1,
+      "unit_price": 17.52,
+      "revenue": 17.52
+    },
+    {
+      "order_id": 1046,
+      "date": "2025-01-23",
+      "region": "North",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 11,
+      "unit_price": 63.07,
+      "revenue": 693.77
+    },
+    {
+      "order_id": 1047,
+      "date": "2025-01-24",
+      "region": "East",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 5,
+      "unit_price": 7.27,
+      "revenue": 36.35
+    },
+    {
+      "order_id": 1048,
+      "date": "2025-01-24",
+      "region": "East",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 4,
+      "unit_price": 35.17,
+      "revenue": 140.68
+    },
+    {
+      "order_id": 1049,
+      "date": "2025-01-25",
+      "region": "South",
+      "product": "Atlas Water Bottle",
+      "category": "Accessories",
+      "quantity": 5,
+      "unit_price": 19.87,
+      "revenue": 99.35
+    },
+    {
+      "order_id": 1050,
+      "date": "2025-01-25",
+      "region": "South",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 1,
+      "unit_price": 6.92,
+      "revenue": 6.92
+    },
+    {
+      "order_id": 1051,
+      "date": "2025-01-25",
+      "region": "Central",
+      "product": "Aurora Desk Lamp",
+      "category": "Lighting",
+      "quantity": 11,
+      "unit_price": 52.52,
+      "revenue": 577.72
+    },
+    {
+      "order_id": 1052,
+      "date": "2025-01-26",
+      "region": "North",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 1,
+      "unit_price": 35.78,
+      "revenue": 35.78
+    },
+    {
+      "order_id": 1053,
+      "date": "2025-01-26",
+      "region": "South",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 6,
+      "unit_price": 7.37,
+      "revenue": 44.22
+    },
+    {
+      "order_id": 1054,
+      "date": "2025-01-26",
+      "region": "North",
+      "product": "Vertex Notebook A5",
+      "category": "Stationery",
+      "quantity": 6,
+      "unit_price": 7.62,
+      "revenue": 45.72
+    },
+    {
+      "order_id": 1055,
+      "date": "2025-01-27",
+      "region": "West",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 6,
+      "unit_price": 33.35,
+      "revenue": 200.1
+    },
+    {
+      "order_id": 1056,
+      "date": "2025-01-27",
+      "region": "North",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 8,
+      "unit_price": 182.05,
+      "revenue": 1456.4
+    },
+    {
+      "order_id": 1057,
+      "date": "2025-01-27",
+      "region": "West",
+      "product": "Nimbus Office Chair",
+      "category": "Furniture",
+      "quantity": 8,
+      "unit_price": 204.38,
+      "revenue": 1635.04
+    },
+    {
+      "order_id": 1058,
+      "date": "2025-01-28",
+      "region": "East",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 7,
+      "unit_price": 35.14,
+      "revenue": 245.98
+    },
+    {
+      "order_id": 1059,
+      "date": "2025-01-28",
+      "region": "East",
+      "product": "Quartz Wall Clock",
+      "category": "Decor",
+      "quantity": 7,
+      "unit_price": 60.03,
+      "revenue": 420.21
+    },
+    {
+      "order_id": 1060,
+      "date": "2025-01-28",
+      "region": "East",
+      "product": "Echo Wireless Mouse",
+      "category": "Electronics",
+      "quantity": 7,
+      "unit_price": 34.84,
+      "revenue": 243.88
+    }
+  ]
+}

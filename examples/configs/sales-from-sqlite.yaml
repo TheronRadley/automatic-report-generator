@@ -1,0 +1,21 @@
+# Same sales report, sourced from SQLite with a parameterised read-only
+# query instead of CSV. Run:
+#   reportgen generate examples/configs/sales-from-sqlite.yaml --all
+version: 1
+report:
+  title: Sales Analysis Report (SQLite source)
+  subtitle: Synthetic sales data — for demonstration only
+  template: sales
+sources:
+  - name: sales
+    type: sqlite
+    path: ../data/sales.sqlite
+    query: >
+      SELECT date, region, product, category, quantity, unit_price, revenue
+      FROM sales WHERE date >= :from_date ORDER BY date
+    params: {from_date: "2025-01-01"}
+    expected_columns: [date, region, product, quantity, unit_price, revenue]
+exports:
+  output_dir: ../reports
+  filename: sales-sqlite-{date}
+  formats: [pdf, html, xlsx]

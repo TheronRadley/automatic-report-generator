@@ -1,0 +1,241 @@
+date,category,account,amount
+2025-01-02,Office,Operating,-4804.79
+2025-01-03,Office,Savings,-6659.14
+2025-01-05,Payroll,Operating,-3363.62
+2025-01-06,Sales income,Operating,1413.07
+2025-01-08,Sales income,Operating,1612.55
+2025-01-10,Payroll,Savings,-2435.61
+2025-01-12,Consulting,Operating,1327.35
+2025-01-13,Office,Savings,-538.57
+2025-01-14,Consulting,Operating,7699.51
+2025-01-15,Payroll,Savings,-1658.4
+2025-01-15,Consulting,Operating,4323.17
+2025-01-17,Sales income,Operating,5984.96
+2025-01-19,Travel,Operating,-3911.23
+2025-01-20,Payroll,Operating,-3159.33
+2025-01-22,Hosting,Operating,-3704.36
+2025-01-23,Sales income,Savings,8236.4
+2025-01-23,Payroll,Operating,-206.59
+2025-01-24,Travel,Operating,-3882.03
+2025-01-27,Office,Operating,-7024.08
+2025-01-29,Sales income,Operating,2451.21
+2025-02-02,Sales income,Operating,1624.17
+2025-02-03,Payroll,Operating,-5975.8
+2025-02-03,Payroll,Operating,-318.66
+2025-02-04,Consulting,Operating,8431.4
+2025-02-05,Hosting,Savings,-2343.8
+2025-02-08,Consulting,Operating,7612.58
+2025-02-09,Sales income,Operating,2008.36
+2025-02-13,Travel,Operating,-7644.29
+2025-02-14,Sales income,Operating,4434.76
+2025-02-17,Travel,Savings,-3651.78
+2025-02-19,Office,Operating,-2990.97
+2025-02-19,Consulting,Savings,5538.69
+2025-02-20,Sales income,Savings,3231.16
+2025-02-22,Hosting,Savings,-3844.27
+2025-02-25,Payroll,Operating,-6687.91
+2025-02-28,Consulting,Operating,1622.24
+2025-03-01,Hosting,Operating,-2414.56
+2025-03-03,Office,Operating,-1748.42
+2025-03-04,Sales income,Savings,4165.72
+2025-03-05,Travel,Operating,-6076.98
+2025-03-06,Sales income,Operating,7400.29
+2025-03-11,Payroll,Operating,-4293.56
+2025-03-11,Hosting,Operating,-3795.32
+2025-03-11,Office,Operating,-710.46
+2025-03-11,Payroll,Savings,-5415.3
+2025-03-11,Office,Operating,-233.8
+2025-03-12,Payroll,Operating,-6639.19
+2025-03-14,Sales income,Operating,2952.1
+2025-03-16,Travel,Operating,-2932.57
+2025-03-16,Travel,Savings,-365.27
+2025-03-18,Hosting,Operating,-2735.11
+2025-03-18,Hosting,Operating,-7635.67
+2025-03-19,Consulting,Savings,6298.76
+2025-03-20,Office,Operating,-6097.76
+2025-03-21,Consulting,Savings,4153.32
+2025-03-21,Sales income,Savings,362.0
+2025-03-21,Consulting,Operating,4500.32
+2025-03-23,Payroll,Operating,-2433.42
+2025-03-24,Hosting,Operating,-8121.37
+2025-03-24,Travel,Operating,-1549.22
+2025-03-24,Hosting,Operating,-5709.08
+2025-03-27,Office,Operating,-2027.25
+2025-03-27,Payroll,Operating,-7824.49
+2025-03-29,Consulting,Operating,6685.19
+2025-03-29,Sales income,Savings,8373.8
+2025-03-31,Travel,Operating,-3438.18
+2025-03-31,Consulting,Savings,1687.11
+2025-03-31,Sales income,Operating,5240.32
+2025-04-01,Sales income,Operating,3781.63
+2025-04-02,Consulting,Savings,1092.34
+2025-04-02,Hosting,Operating,-2444.51
+2025-04-04,Hosting,Operating,-5132.73
+2025-04-08,Consulting,Savings,7225.49
+2025-04-10,Payroll,Operating,-6050.78
+2025-04-11,Payroll,Operating,-8296.79
+2025-04-13,Consulting,Operating,6644.62
+2025-04-17,Travel,Savings,-7257.33
+2025-04-18,Sales income,Operating,6596.59
+2025-04-19,Consulting,Operating,3771.92
+2025-04-20,Hosting,Operating,-4664.64
+2025-04-21,Hosting,Operating,-3223.46
+2025-04-22,Hosting,Savings,-1746.07
+2025-04-24,Travel,Operating,-2366.56
+2025-04-25,Office,Operating,-5224.11
+2025-04-27,Hosting,Operating,-7831.36
+2025-04-28,Hosting,Savings,-6491.29
+2025-04-29,Travel,Operating,-923.84
+2025-05-01,Consulting,Operating,5421.32
+2025-05-06,Payroll,Operating,-890.25
+2025-05-09,Travel,Savings,-3817.18
+2025-05-10,Travel,Operating,-6692.14
+2025-05-12,Consulting,Operating,7237.6
+2025-05-16,Payroll,Operating,-7449.75
+2025-05-18,Travel,Savings,-7192.9
+2025-05-21,Consulting,Operating,5049.72
+2025-05-22,Consulting,Savings,8145.72
+2025-05-22,Office,Operating,-5079.79
+2025-05-23,Sales income,Operating,7586.09
+2025-05-27,Office,Operating,-4013.92
+2025-05-28,Travel,Savings,-7699.09
+2025-05-28,Sales income,Operating,836.76
+2025-05-30,Payroll,Savings,-1123.89
+2025-05-31,Travel,Operating,-8157.61
+2025-05-31,Travel,Operating,-4169.53
+2025-06-01,Payroll,Operating,-6548.18
+2025-06-01,Hosting,Operating,-4070.51
+2025-06-02,Hosting,Operating,-2268.21
+2025-06-03,Payroll,Operating,-3718.82
+2025-06-03,Consulting,Operating,7099.86
+2025-06-05,Hosting,Operating,-6626.18
+2025-06-09,Consulting,Operating,1528.45
+2025-06-11,Office,Operating,-4149.47
+2025-06-19,Consulting,Operating,396.57
+2025-06-19,Payroll,Savings,-4047.87
+2025-06-20,Payroll,Operating,-161.6
+2025-06-21,Travel,Operating,-1369.56
+2025-06-24,Hosting,Operating,-6719.08
+2025-06-26,Office,Savings,-5216.32
+2025-06-27,Payroll,Operating,-6144.77
+2025-06-29,Office,Operating,-7481.92
+2025-06-30,Hosting,Operating,-561.97
+2025-07-01,Payroll,Operating,-5501.65
+2025-07-04,Hosting,Savings,-3506.87
+2025-07-04,Travel,Operating,-2112.36
+2025-07-04,Consulting,Operating,1649.35
+2025-07-05,Sales income,Operating,6232.08
+2025-07-05,Consulting,Operating,1303.52
+2025-07-06,Office,Operating,-3315.07
+2025-07-07,Payroll,Operating,-2445.14
+2025-07-08,Office,Operating,-5899.32
+2025-07-09,Payroll,Operating,-600.72
+2025-07-09,Payroll,Operating,-1114.3
+2025-07-13,Sales income,Operating,1321.55
+2025-07-14,Payroll,Savings,-4237.59
+2025-07-18,Payroll,Operating,-2232.73
+2025-07-20,Sales income,Operating,8455.93
+2025-07-24,Sales income,Operating,8268.24
+2025-07-25,Travel,Operating,-6874.34
+2025-07-26,Travel,Operating,-5094.83
+2025-07-27,Consulting,Operating,554.37
+2025-07-29,Travel,Operating,-8154.45
+2025-07-30,Sales income,Operating,5022.06
+2025-08-05,Payroll,Operating,-4828.03
+2025-08-06,Office,Operating,-5274.7
+2025-08-09,Consulting,Operating,509.45
+2025-08-10,Office,Operating,-4632.37
+2025-08-12,Travel,Operating,-6334.33
+2025-08-12,Consulting,Operating,1365.91
+2025-08-14,Hosting,Savings,-8140.7
+2025-08-15,Hosting,Savings,-6118.47
+2025-08-18,Sales income,Operating,8060.67
+2025-08-18,Sales income,Savings,7764.69
+2025-08-20,Sales income,Operating,1284.17
+2025-08-22,Office,Operating,-1234.1
+2025-08-23,Travel,Operating,-1286.93
+2025-08-24,Travel,Operating,-4420.47
+2025-08-26,Sales income,Operating,3940.63
+2025-08-26,Sales income,Savings,7972.79
+2025-08-26,Office,Savings,-6801.66
+2025-08-27,Sales income,Operating,2939.56
+2025-08-29,Office,Operating,-5696.17
+2025-08-30,Hosting,Savings,-7412.06
+2025-09-01,Consulting,Operating,1014.03
+2025-09-01,Hosting,Savings,-4721.4
+2025-09-02,Office,Operating,-4088.61
+2025-09-02,Consulting,Operating,3191.23
+2025-09-05,Travel,Operating,-7990.9
+2025-09-05,Consulting,Savings,8268.5
+2025-09-06,Office,Operating,-745.08
+2025-09-07,Sales income,Savings,4210.51
+2025-09-07,Travel,Operating,-2284.8
+2025-09-08,Payroll,Operating,-7167.85
+2025-09-09,Hosting,Operating,-1644.38
+2025-09-10,Travel,Operating,-3831.44
+2025-09-12,Hosting,Savings,-4378.2
+2025-09-19,Sales income,Savings,3585.17
+2025-09-21,Payroll,Savings,-3553.6
+2025-09-21,Consulting,Operating,1875.43
+2025-09-21,Consulting,Operating,937.26
+2025-09-24,Sales income,Savings,957.55
+2025-09-28,Office,Savings,-8061.25
+2025-09-28,Payroll,Operating,-2872.52
+2025-09-29,Office,Operating,-2961.38
+2025-10-02,Consulting,Operating,4373.54
+2025-10-03,Consulting,Operating,3439.72
+2025-10-05,Hosting,Operating,-7643.03
+2025-10-08,Travel,Operating,-5531.44
+2025-10-10,Payroll,Operating,-7226.62
+2025-10-11,Hosting,Operating,-2746.67
+2025-10-15,Travel,Operating,-1351.16
+2025-10-18,Office,Operating,-514.49
+2025-10-22,Hosting,Operating,-5632.05
+2025-10-23,Office,Operating,-7973.13
+2025-10-24,Sales income,Operating,3268.94
+2025-10-25,Hosting,Operating,-7658.07
+2025-11-03,Consulting,Operating,1336.18
+2025-11-07,Sales income,Operating,7669.58
+2025-11-11,Office,Operating,-8436.99
+2025-11-12,Office,Operating,-4195.85
+2025-11-12,Sales income,Operating,2010.84
+2025-11-15,Consulting,Operating,5978.15
+2025-11-17,Office,Operating,-1012.6
+2025-11-18,Office,Savings,-8000.75
+2025-11-23,Payroll,Operating,-8321.07
+2025-11-23,Sales income,Operating,6011.71
+2025-11-23,Travel,Operating,-2437.67
+2025-11-23,Sales income,Savings,1614.73
+2025-11-25,Travel,Operating,-978.1
+2025-11-25,Sales income,Operating,4224.41
+2025-11-28,Consulting,Operating,1798.53
+2025-11-29,Office,Operating,-5500.95
+2025-11-29,Consulting,Savings,4184.0
+2025-11-30,Payroll,Operating,-6436.09
+2025-11-30,Payroll,Savings,-8198.37
+2025-12-02,Hosting,Savings,-6694.36
+2025-12-07,Consulting,Operating,808.75
+2025-12-08,Office,Operating,-1769.46
+2025-12-08,Travel,Operating,-3465.94
+2025-12-08,Travel,Savings,-5902.42
+2025-12-09,Travel,Savings,-3157.21
+2025-12-10,Travel,Operating,-4241.84
+2025-12-11,Hosting,Operating,-1490.15
+2025-12-12,Office,Operating,-6742.24
+2025-12-13,Sales income,Savings,1046.16
+2025-12-15,Hosting,Operating,-5843.41
+2025-12-15,Travel,Operating,-4724.86
+2025-12-15,Travel,Savings,-3595.54
+2025-12-15,Consulting,Operating,8121.45
+2025-12-18,Travel,Operating,-6675.02
+2025-12-19,Payroll,Operating,-1710.79
+2025-12-22,Travel,Savings,-6121.7
+2025-12-23,Sales income,Operating,6761.13
+2025-12-23,Office,Savings,-602.28
+2025-12-25,Travel,Operating,-2862.12
+2025-12-25,Office,Operating,-8024.59
+2025-12-25,Travel,Savings,-772.42
+2025-12-27,Consulting,Operating,1306.5
+2025-12-28,Payroll,Savings,-771.39
+2025-12-30,Payroll,Operating,-2305.77
+2025-12-31,Payroll,Savings,-3597.29
