@@ -1,0 +1,18 @@
+# Same sales report, sourced from an Excel worksheet. Run:
+#   reportgen generate examples/configs/sales-from-excel.yaml --all
+version: 1
+report:
+  title: Sales Analysis Report (Excel source)
+  subtitle: Synthetic sales data — for demonstration only
+  template: sales
+sources:
+  - name: sales
+    type: excel
+    path: ../data/inventory.xlsx
+    options: {sheet: "Sample orders"}
+    columns: [date, region, product, quantity, unit_price, revenue]
+    expected_columns: [date, region, product, quantity, unit_price, revenue]
+exports:
+  output_dir: ../reports
+  filename: sales-excel-{date}
+  formats: [pdf, html, xlsx]

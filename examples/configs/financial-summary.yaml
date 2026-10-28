@@ -1,0 +1,19 @@
+# Financial summary report — synthetic example data.
+version: 1
+report:
+  title: Financial Summary Report
+  subtitle: Synthetic ledger data — for demonstration only
+  template: financial
+  theme: muted
+  summary: >-
+    {transactions} transactions across {categories} categories netted
+    {net_amount}. The average transaction was {average_transaction}.
+sources:
+  - name: ledger
+    type: csv
+    path: ../data/financial_summary.csv
+    expected_columns: [date, category, account, amount]
+exports:
+  output_dir: ../reports
+  filename: financial-summary-{date}
+  formats: [pdf, html, xlsx]

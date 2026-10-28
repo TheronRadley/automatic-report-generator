@@ -1,0 +1,4 @@
+graft src/reportgen/exporters/templates
+include README.md LICENSE CHANGELOG.md
+global-exclude *.pyc
+global-exclude __pycache__

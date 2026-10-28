@@ -1,0 +1,19 @@
+# Operational metrics report — synthetic example data.
+version: 1
+report:
+  title: Operational Metrics Report
+  subtitle: Synthetic production data — for demonstration only
+  template: operations
+  theme: default
+  summary: >-
+    {sites} sites produced {total_output} units with {total_defects}
+    defects and {total_downtime} hours of downtime.
+sources:
+  - name: operations
+    type: csv
+    path: ../data/operations.csv
+    expected_columns: [date, site, output_units, defects, downtime_hours]
+exports:
+  output_dir: ../reports
+  filename: operations-{date}
+  formats: [pdf, html, xlsx]

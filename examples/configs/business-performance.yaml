@@ -1,0 +1,19 @@
+# Business performance report — synthetic example data.
+version: 1
+report:
+  title: Business Performance Report
+  subtitle: Synthetic departmental data — for demonstration only
+  template: business
+  theme: default
+  summary: >-
+    Revenue of {total_revenue} against expenses of {total_expenses}
+    produced a net profit of {total_profit}.
+sources:
+  - name: performance
+    type: csv
+    path: ../data/business_performance.csv
+    expected_columns: [date, department, revenue, expenses]
+exports:
+  output_dir: ../reports
+  filename: business-performance-{date}
+  formats: [pdf, html, xlsx]

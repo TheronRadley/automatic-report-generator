@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>
+  :root { --ink: #1a1a1a; --muted: #5a5a5a; --rule: #d8d8d8; --accent: #2f4b7c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: var(--ink);
+         background: #f4f4f2; line-height: 1.55; }
+  .page { max-width: 920px; margin: 2rem auto; background: #fff; padding: 3rem 3.2rem;
+          box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 1rem; margin-bottom: 1.4rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; line-height: 1.2; }
+  .subtitle { color: var(--muted); font-size: 1.05rem; margin: 0 0 .6rem; }
+  .meta { font-family: Helvetica, Arial, sans-serif; font-size: .82rem; color: var(--muted); }
+  .meta span + span::before { content: " · "; }
+  h2 { font-family: Helvetica, Arial, sans-serif; font-size: 1.05rem; letter-spacing: .02em;
+       border-bottom: 1px solid var(--rule); padding-bottom: .35rem; margin: 2rem 0 .8rem; }
+  p { margin: 0 0 .8rem; }
+  .summary { font-size: 1.02rem; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+             gap: .8rem; margin: 1rem 0; }
+  .metric { border: 1px solid var(--rule); border-top: 3px solid var(--accent); padding: .7rem .9rem; }
+  .metric .label { font-family: Helvetica, Arial, sans-serif; font-size: .72rem;
+                   text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .metric .value { font-size: 1.35rem; font-weight: bold; margin-top: .2rem; }
+  table { border-collapse: collapse; width: 100%; font-family: Helvetica, Arial, sans-serif;
+          font-size: .85rem; margin: .6rem 0 1rem; }
+  th { background: var(--accent); color: #fff; text-align: left; padding: .45rem .6rem; }
+  td { border-bottom: 1px solid var(--rule); padding: .4rem .6rem; }
+  tr:nth-child(even) td { background: #fafafa; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note, .sources, .warnings { font-family: Helvetica, Arial, sans-serif; font-size: .8rem; color: var(--muted); }
+  .warnings { color: #7a3b00; }
+  figure { margin: 1rem 0; text-align: center; }
+  figure img { max-width: 100%; height: auto; border: 1px solid var(--rule); }
+  footer { margin-top: 2.4rem; border-top: 1px solid var(--rule); padding-top: .8rem;
+           font-family: Helvetica, Arial, sans-serif; font-size: .78rem; color: var(--muted); }
+  @media print {
+    body { background: #fff; }
+    .page { box-shadow: none; margin: 0; max-width: none; padding: 0; }
+    h2 { break-after: avoid; } figure, table { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    {% if organization %}<div class="meta">{{ organization }}</div>{% endif %}
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p class="subtitle">{{ subtitle }}</p>{% endif %}
+    <div class="meta">
+      <span>Generated {{ generated_at }}</span>
+      {% if author %}<span>{{ author }}</span>{% endif %}
+      <span>Template: {{ template }}</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Executive summary</h2>
+    <p class="summary">{{ summary }}</p>
+  </section>
+
+  {% for section in sections %}
+  <section>
+    <h2>{{ section.title }}</h2>
+    {% if section.kind == "metrics" %}
+      <div class="metrics">
+        {% for metric in metrics %}
+        <div class="metric"><div class="label">{{ metric.label }}</div>
+          <div class="value">{{ metric.formatted }}</div></div>
+        {% endfor %}
+      </div>
+    {% elif section.kind == "text" %}
+      <p>{{ section.text }}</p>
+    {% elif section.kind == "chart" %}
+      {% if section.text %}<p>{{ section.text }}</p>{% elif section.description %}<p>{{ section.description }}</p>{% endif %}
+      <figure><img src="{{ section.chart_data_uri }}" alt="{{ section.chart_title }}"></figure>
+    {% elif section.kind == "table" %}
+      {% if section.description %}<p>{{ section.description }}</p>{% endif %}
+      <table>
+        <thead><tr>{% for col in section.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in section.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+      {% if section.truncated %}<p class="note">Showing {{ section.shown_rows }} of {{ section.total_rows }} rows. The Excel export contains the full table.</p>{% endif %}
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if methodology %}
+  <section><h2>Methodology</h2><p>{{ methodology }}</p></section>
+  {% endif %}
+
+  <section>
+    <h2>Sources</h2>
+    <ul class="sources">{% for source in sources %}<li>{{ source }}</li>{% endfor %}</ul>
+    {% if warnings %}
+    <h2>Warnings</h2>
+    <ul class="warnings">{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+
+  <footer>{{ footer or title }} · Generated {{ generated_at }} by Automatic Report Generator</footer>
+</main>
+</body>
+</html>
