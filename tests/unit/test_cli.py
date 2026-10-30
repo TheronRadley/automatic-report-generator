@@ -14,20 +14,29 @@ runner = CliRunner()
 
 def _json_line(output: str) -> dict:
     """Extract the JSON object a --json command printed (logs go to stderr,
-    which the test runner merges into output)."""
-    for line in reversed(output.strip().splitlines()):
-        line = line.strip()
-        if line.startswith("{"):
-            return json.loads(line)
+    which the test runner merges into output; pretty-printed JSON spans
+    several lines, so parse from the last top-level '{' that parses)."""
+    decoder = json.JSONDecoder()
+    starts = [
+        index
+        for index, char in enumerate(output)
+        if char == "{" and (index == 0 or output[index - 1] == "\n")
+    ]
+    for index in reversed(starts):
+        try:
+            parsed, _ = decoder.raw_decode(output[index:])
+        except json.JSONDecodeError:
+            continue
+        return parsed
     raise AssertionError(f"No JSON object in output:\n{output}")
 
 
 def test_help_and_version():
     assert runner.invoke(app, ["--help"]).exit_code == 0
     result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0 and "0.1.0" in result.output
+    assert result.exit_code == 0 and "0.2.0" in result.output
     result = runner.invoke(app, ["version", "--json"])
-    assert json.loads(result.output)["version"] == "0.1.0"
+    assert json.loads(result.output)["version"] == "0.2.0"
 
 
 def test_templates_commands():
@@ -110,3 +119,93 @@ def test_quiet_and_verbose_flags(minimal_sales_config):
         app, ["--quiet", "generate", str(minimal_sales_config), "--format", "html"]
     )
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------- fixes #13/#17/#18/#20
+
+
+def test_validate_catches_broken_pipeline(write_config, sales_csv, tmp_path):
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Broken, template: general}}
+sources: [{{name: d, type: csv, path: {sales_csv}}}]
+processing:
+  - dataset: d
+    steps:
+      - {{op: filter, column: does_not_exist, operator: eq, value: 1}}
+"""
+    )
+    result = runner.invoke(app, ["validate", str(config)])
+    assert result.exit_code != 0
+    assert "does_not_exist" in result.output
+
+
+def test_validate_catches_bad_chart(write_config, sales_csv, tmp_path):
+    config = write_config(
+        f"""
+version: 1
+report: {{title: BadChart, template: general}}
+sources: [{{name: d, type: csv, path: {sales_csv}}}]
+sections:
+  - type: chart
+    title: Broken
+    dataset: d
+    chart: {{type: line, x: date, y: nonexistent}}
+"""
+    )
+    result = runner.invoke(app, ["validate", str(config), "--json"])
+    assert result.exit_code != 0
+    assert "nonexistent" in result.output
+
+
+def test_generate_dry_run_and_manifest(write_config, sales_csv, tmp_path):
+    out = tmp_path / "out"
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Dry, template: general}}
+sources: [{{name: d, type: csv, path: {sales_csv}}}]
+exports: {{output_dir: {out}, filename: dryrun, overwrite: true}}
+"""
+    )
+    manifest = tmp_path / "manifest.json"
+    result = runner.invoke(
+        app,
+        ["generate", str(config), "--dry-run", "--manifest", str(manifest), "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = _json_line(result.output)
+    assert payload["dry_run"] is True
+    assert payload["outputs"] == []
+    saved = json.loads(manifest.read_text(encoding="utf-8"))
+    assert saved["status"] == "dry_run"
+    assert not (out / "dryrun.html").exists()
+
+
+def test_generate_json_reports_partial_outputs(write_config, sales_csv, tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "partial.pdf").write_text("existing")
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Partial, template: general}}
+sources: [{{name: d, type: csv, path: {sales_csv}}}]
+exports: {{output_dir: {out}, filename: partial}}
+"""
+    )
+    result = runner.invoke(
+        app,
+        ["generate", str(config), "--format", "html", "--format", "pdf", "--json"],
+    )
+    assert result.exit_code != 0
+    payload = _json_line(result.output)
+    assert payload["ok"] is False
+    assert [p.split("/")[-1] for p in payload["outputs"]] == ["partial.html"]
+
+
+def test_cli_param_requires_key_value(minimal_sales_config):
+    result = runner.invoke(app, ["generate", str(minimal_sales_config), "--param", "nope"])
+    assert result.exit_code != 0
+    assert "KEY=VALUE" in result.output

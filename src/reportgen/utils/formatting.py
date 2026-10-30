@@ -8,7 +8,9 @@ from datetime import date, datetime
 import pandas as pd
 
 
-def format_number(value: object, fmt: str = "number", decimals: int = 2) -> str:
+def format_number(
+    value: object, fmt: str = "number", decimals: int = 2, currency: str = "$"
+) -> str:
     """Format a value as number | currency | percent | integer.
 
     ``percent`` expects a fraction (0.125 -> '12.50%'). Missing values
@@ -38,7 +40,7 @@ def format_number(value: object, fmt: str = "number", decimals: int = 2) -> str:
         return f"{number:,.0f}"
     if fmt == "currency":
         sign = "-" if number < 0 else ""
-        return f"{sign}${abs(number):,.{decimals}f}"
+        return f"{sign}{currency}{abs(number):,.{decimals}f}"
     if fmt == "percent":
         return f"{number * 100:,.{decimals}f}%"
     # Plain number: drop trailing zeros for whole values.

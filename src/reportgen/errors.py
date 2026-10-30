@@ -51,6 +51,18 @@ class ExportError(ReportGenError):
     exit_code = 6
 
 
+class PartialExportError(ExportError):
+    """One format failed after earlier formats succeeded.
+
+    Carries the files that *were* created so callers (CLI --json, job
+    history) can report them for safe retries and cleanup instead of
+    pretending nothing was produced."""
+
+    def __init__(self, message: str, outputs: list) -> None:
+        super().__init__(message)
+        self.outputs = list(outputs)
+
+
 class JobError(ReportGenError):
     """A saved job is missing, locked, or failed to run."""
 

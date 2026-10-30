@@ -68,6 +68,7 @@ def test_sales_demo_all_formats_with_correct_figures(tmp_path):
         "sales-from-sqlite.yaml",
         "sales-from-excel.yaml",
         "sales-from-json.yaml",
+        "monthly-sales-window.yaml",
     ],
 )
 def test_every_example_config_runs(tmp_path, config_name):
