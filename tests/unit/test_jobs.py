@@ -103,3 +103,151 @@ def test_schedule_examples_cover_platforms():
     assert "cron" in " ".join(examples).lower()
     assert "schtasks" in joined
     assert "jobs run monthly" in joined
+
+
+# ------------------------------------------------------- regression suite (#1/#3/#5/#17)
+
+
+def test_retention_never_deletes_newest_with_repeated_filename(tmp_path, write_config):
+    """#1: same output name every run + retention must keep the newest file."""
+    csv = tmp_path / "d.csv"
+    csv.write_text("region,revenue\nAlpha,10\n", encoding="utf-8")
+    out = tmp_path / "out"
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Rep, template: general}}
+sources: [{{name: d, type: csv, path: {csv}}}]
+exports: {{output_dir: {out}, filename: report, overwrite: true}}
+"""
+    )
+    store = JobStore(home=tmp_path / "home")
+    store.add_job(
+        Job(
+            name="rep",
+            config=str(config),
+            formats=["html"],
+            overwrite=True,
+            retention_keep=1,
+        )
+    )
+    run_job(store, "rep")
+    target = out / "report.html"
+    assert target.exists()
+    csv.write_text("region,revenue\nZetaland,99\n", encoding="utf-8")  # new content
+    run_job(store, "rep")
+    assert target.exists(), "retention deleted the newest report"
+    assert "Zetaland" in target.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("bad", ["../escape", "a/b", "a\\b", "x; rm -rf /", "", "..", "CON", "a b"])
+def test_job_names_are_validated(bad, tmp_path):
+    """#3: names become filenames and scheduler text — separators rejected."""
+    from reportgen.automation.jobs import validate_job_name
+
+    with pytest.raises(JobError, match="Invalid job name"):
+        validate_job_name(bad)
+    store = JobStore(home=tmp_path / "home")
+    with pytest.raises(JobError):
+        store.add_job(_job(name=bad))
+
+
+def test_lock_paths_stay_inside_store(tmp_path):
+    store = JobStore(home=tmp_path / "home")
+    assert store._lock_path("monthly-sales").parent == store.locks_dir
+
+
+def test_live_lock_is_never_stale_by_age_alone(tmp_path):
+    """#5: a heartbeating owner's lock blocks, however old the run is."""
+    import json
+    import os
+    import socket
+
+    store = JobStore(home=tmp_path / "home")
+    store.locks_dir.mkdir(parents=True, exist_ok=True)
+    lock = store.locks_dir / "j.lock"
+    lock.write_text(
+        json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "token": "x"}),
+        encoding="utf-8",
+    )
+    old = lock.stat().st_mtime - 10_000  # heartbeat "stopped" long ago...
+    os.utime(lock, (old, old))
+    # ...but the owner PID (this process) is alive, so it must not reclaim.
+    assert store._lock_is_stale(lock) is False
+    with pytest.raises(JobError, match="already"):
+        store.acquire_lock("j")
+
+
+def test_dead_owner_lock_is_reclaimed(tmp_path):
+    import json
+    import os
+    import socket
+
+    store = JobStore(home=tmp_path / "home")
+    store.locks_dir.mkdir(parents=True, exist_ok=True)
+    lock = store.locks_dir / "j.lock"
+    lock.write_text(
+        json.dumps({"pid": 2_147_483_646, "host": socket.gethostname(), "token": "stale"}),
+        encoding="utf-8",
+    )
+    old = lock.stat().st_mtime - 10_000
+    os.utime(lock, (old, old))
+    acquired = store.acquire_lock("j")  # reclaimed instead of raising
+    store.release_lock(acquired)
+    assert not lock.exists()
+
+
+def test_lock_released_when_history_recording_fails(tmp_path, minimal_sales_config, monkeypatch):
+    """#5: a history-write failure must not strand the job lock."""
+    store = JobStore(home=tmp_path / "home")
+    store.add_job(
+        Job(name="histfail", config=str(minimal_sales_config), formats=["html"], overwrite=True)
+    )
+
+    def _boom(entry):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "record_history", _boom)
+    with pytest.raises(JobError, match="history"):
+        run_job(store, "histfail")
+    assert not list(store.locks_dir.glob("*.lock"))
+
+
+def test_concurrent_job_additions_are_not_lost(tmp_path):
+    """#5: the store lock serialises add_job across threads/processes."""
+    import threading
+
+    store = JobStore(home=tmp_path / "home")
+
+    def _add(i):
+        store.add_job(_job(name=f"job-{i}"))
+
+    threads = [threading.Thread(target=_add, args=(i,)) for i in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(j.name for j in store.list_jobs()) == [f"job-{i}" for i in range(8)]
+
+
+def test_job_history_records_partial_outputs_on_failure(tmp_path, write_config, sales_csv):
+    """#17: a format that fails late still records earlier created files."""
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "jobbed.pdf").write_text("existing")  # pdf export will refuse
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Partial Job, template: general}}
+sources: [{{name: d, type: csv, path: {sales_csv}}}]
+exports: {{output_dir: {out}, filename: jobbed}}
+"""
+    )
+    store = JobStore(home=tmp_path / "home")
+    store.add_job(Job(name="jobbed", config=str(config), formats=["html", "pdf"]))
+    with pytest.raises(JobError):
+        run_job(store, "jobbed")
+    history = store.history(job="jobbed")
+    assert history[0]["status"] == "failed"
+    assert [p.split("/")[-1] for p in history[0]["outputs"]] == ["jobbed.html"]
+    assert (out / "jobbed.html").exists()
