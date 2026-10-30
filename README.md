@@ -13,7 +13,8 @@ The same sales report is also wired to SQLite, Excel, and JSON sources (`example
 - **Reports:** five built-in templates (business performance, financial summary, sales analysis, operational metrics, general analysis), executive summaries with computed values, key metrics, tables, 9 chart types (line, bar, horizontal bar, area, scatter, histogram, pie, donut, time-series), methodology/source attribution, themes.
 - **Exports:** print-ready multi-page PDF (headers/footers, page numbers, repeating table headers, DejaVu Sans Unicode), self-contained responsive HTML (embedded charts, no CDN, print styles), styled Excel workbooks (summary + per-section sheets, freeze panes, filters, native number/date types, embedded chart images). Multi-format export in one command, atomic no-clobber writes.
 - **Automation:** saved jobs with per-run logs, run history, file-lock overlap prevention, subprocess timeouts, optional retention, and ready-to-paste cron / Windows Task Scheduler / launchd configuration.
-- **Safety:** safe YAML loading, sandboxed autoescaped HTML templates, read-only SQL validation, path-traversal and spreadsheet-formula-injection protections, overwrite refusal, input size limits, credential masking in logs.
+- **Safety:** safe YAML loading, sandboxed autoescaped HTML templates, read-only SQL validation, path-traversal and spreadsheet-formula-injection protections, overwrite refusal, input size limits, credential masking in logs (including URL query strings).
+- **Auditability:** run parameters with run-time date tokens ("last month" resolves per run), configurable currency and reporting timezone, `--dry-run`, and `--manifest` run records (input/config fingerprints, row counts, warnings, per-output status). Data-quality rules and chart reductions always disclose their counts instead of silently discarding data.
 
 ## Installation
 
@@ -120,8 +121,8 @@ Regenerate example data deterministically with `python examples/generate_demo_da
 
 ## Known limitations
 
-- Single-machine, in-memory processing: datasets are assembled as pandas DataFrames (chunked reads bound input memory, but the working set must fit in RAM). The default input limit is 200 MB per file, configurable via `options.max_input_mb`.
-- Excel sources support `.xlsx`/`.xlsm` (not legacy `.xls`); entire worksheets are loaded into memory.
+- Single-machine, in-memory processing: row limits are enforced *during* loading and reads are chunked/streamed where the format allows (CSV, JSONL, database results), but each dataset lives in RAM as a pandas DataFrame, so the working set must fit in memory. The default input limit is 200 MB per file, configurable via `options.max_input_mb`; plain-JSON documents are parsed in one pass.
+- Excel sources support `.xlsx`/`.xlsm` (not legacy `.xls`); decompressed size and cell count are bounded (`max_expanded_mb`/`max_cells`) and `max_rows` applies during the read, but the selected sheet is still loaded into memory.
 - PDF supports one bundled font family (DejaVu Sans via Matplotlib, with Helvetica fallback); right-to-left script shaping is not supported by ReportLab paragraph layout.
 - Database read-only enforcement is defence-in-depth (query validation + read-only sessions); always use a least-privilege read-only database account as well.
 - No graphical interface, email delivery, or cloud storage in v0.1.0 — the CLI and OS schedulers are the supported interfaces.

@@ -24,12 +24,13 @@ reportgen jobs remove monthly-sales  # generated reports are kept
 
 Guarantees:
 
-- **No overlap:** a lock file (`O_EXCL` create) refuses a second concurrent run of the same job. Locks older than one hour are treated as stale (e.g. after a power loss), removed with a warning, and the run proceeds.
+- **No overlap:** a lock file (`O_EXCL` create, containing PID/host/token) refuses a second concurrent run of the same job. Stale recovery is liveness-based, not age-based: a run heartbeats its lock, and a lock is only reclaimed when it cannot be a live run (dead local PID, heartbeat stopped beyond the job's timeout, or a different host with a dead heartbeat). The lock is released even if recording history fails; job-store writes are serialised so concurrent `jobs add`/`jobs run` cannot corrupt state. Job names are validated (`[A-Za-z0-9._-]`, no path separators) because they name lock/log files and appear in scheduler examples.
 - **Timeout:** `--timeout` seconds (default 600); an overrun kills the subprocess and records `status: timeout`.
 - **Date-based names:** `{date}`/`{datetime}` in `exports.filename` keep scheduled outputs distinct without `overwrite`.
-- **Failure reporting:** every run appends to `history.jsonl` (`success|failed|timeout`, outputs, error, duration) and writes full stdout/stderr to `logs/`. `reportgen history list` (or `--json` for monitoring scripts) surfaces failures. Exit codes are non-zero on failure, so schedulers and CI notice.
+- **Failure reporting:** every run appends to `history.jsonl` (`success|failed|timeout`, outputs, error, duration) and writes full stdout/stderr to `logs/`. If some formats succeeded before the failure, those files are kept **and recorded in the history entry**, so retries know exactly what exists. Each run also writes a run manifest next to its log (`logs/<job>-<timestamp>.manifest.json`) with input/config fingerprints, row counts, warnings and per-output status. `reportgen history list` (or `--json` for monitoring scripts) surfaces failures. Exit codes are non-zero on failure, so schedulers and CI notice.
 - **Safe reruns:** exports are atomic and no-clobber by default (see docs/security.md); re-running a date-named job the same day needs the job's `--overwrite` flag if you really want replacement.
-- **Retention (opt-in only):** `jobs add --retention N` keeps only the most recent N successful runs' files. Deletion is limited to files recorded in that job's own history — nothing is ever deleted by default, and unrelated files are never touched.
+- **Retention (opt-in only):** `jobs add --retention N` keeps only the most recent N successful runs' files. Deletion is limited to files recorded in that job's own history — nothing is ever deleted by default, and unrelated files are never touched. Any file belonging to a *retained* run is protected, so with a repeated output filename (e.g. `--overwrite`) the newest report can never delete itself.
+- **Parameters:** `jobs add --param from_date=previous_month_start --param to_date=previous_month_end` passes date-range parameters to every run; tokens resolve at run time, so the same job covers each new period with no edits (see `parameters` in docs/configuration.md).
 
 ## Scheduling
 

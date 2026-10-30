@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automatic-report-generator"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automate report generation from CSV, Excel, JSON, and database sources with customizable templates, data visualization, and PDF, HTML, and Excel exports."
 readme = "README.md"
 license = { text = "MIT" }
