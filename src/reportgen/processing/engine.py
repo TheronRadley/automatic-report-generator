@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from reportgen.errors import ProcessingError
+from reportgen.errors import ProcessingError, ValidationError
 from reportgen.processing.validation import (
     normalise_aggregation,
     require_columns,
@@ -40,22 +40,45 @@ _BIN_OPS = {
 # ---------------------------------------------------------------------------
 
 
-def evaluate_expression(frame: pd.DataFrame, expression: str) -> pd.Series:
-    """Evaluate e.g. ``quantity * unit_price`` column-wise, safely."""
+def evaluate_expression(
+    frame: pd.DataFrame, expression: str, notes: list[str] | None = None
+) -> pd.Series:
+    """Evaluate e.g. ``quantity * unit_price`` column-wise, safely.
+
+    Referenced columns are coerced to numeric once, up front, so any
+    values that cannot participate in arithmetic are counted and
+    reported via ``notes`` instead of silently vanishing."""
     try:
         tree = ast.parse(str(expression), mode="eval")
     except SyntaxError as exc:
         raise ProcessingError(f"Invalid calculated expression {expression!r}: {exc.msg}") from exc
-    result = _eval_node(tree.body, frame, str(expression))
+    columns: dict[str, pd.Series] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id not in columns:
+            if node.id not in frame.columns:
+                raise ProcessingError(
+                    f"Calculated expression {expression!r} references unknown column "
+                    f"'{node.id}'. Available: {', '.join(str(c) for c in frame.columns)}"
+                )
+            original = frame[node.id]
+            coerced = pd.to_numeric(original, errors="coerce")
+            lost = int((coerced.isna() & original.notna()).sum())
+            if notes is not None and lost:
+                notes.append(
+                    f"calculate: {lost} value(s) in '{node.id}' are not numeric and "
+                    "were treated as missing in the calculation."
+                )
+            columns[node.id] = coerced
+    result = _eval_node(tree.body, columns, str(expression))
     if not isinstance(result, pd.Series):
         result = pd.Series([result] * len(frame), index=frame.index)
     return result
 
 
-def _eval_node(node: ast.AST, frame: pd.DataFrame, expression: str) -> Any:
+def _eval_node(node: ast.AST, columns: dict[str, pd.Series], expression: str) -> Any:
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
-        left = _eval_node(node.left, frame, expression)
-        right = _eval_node(node.right, frame, expression)
+        left = _eval_node(node.left, columns, expression)
+        right = _eval_node(node.right, columns, expression)
         # Guard against giant-integer exponentiation (e.g. 9 ** 9 ** 9)
         # hanging the process; column arithmetic uses floats and overflows
         # to inf safely, but scalar ** with a huge exponent must be refused.
@@ -68,15 +91,10 @@ def _eval_node(node: ast.AST, frame: pd.DataFrame, expression: str) -> Any:
         with np.errstate(divide="ignore", invalid="ignore"):
             return _BIN_OPS[type(node.op)](left, right)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        value = _eval_node(node.operand, frame, expression)
+        value = _eval_node(node.operand, columns, expression)
         return value if isinstance(node.op, ast.UAdd) else -value
     if isinstance(node, ast.Name):
-        if node.id not in frame.columns:
-            raise ProcessingError(
-                f"Calculated expression {expression!r} references unknown column "
-                f"'{node.id}'. Available: {', '.join(str(c) for c in frame.columns)}"
-            )
-        return pd.to_numeric(frame[node.id], errors="coerce")
+        return columns[node.id]  # existence/coercion handled by evaluate_expression
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
         return node.value
     raise ProcessingError(
@@ -152,15 +170,22 @@ def _condition_mask(frame: pd.DataFrame, condition: dict[str, Any]) -> pd.Series
             value = float(value)
         except ValueError:
             pass
-    ops = {
-        "eq": comparable.eq(value),
-        "ne": comparable.ne(value),
-        "gt": comparable.gt(value),
-        "gte": comparable.ge(value),
-        "lt": comparable.lt(value),
-        "lte": comparable.le(value),
-    }
-    return ops[op].fillna(False)
+    # Evaluate ONLY the requested comparison: building a dict of all six
+    # would also run e.g. gt on a mixed-type column for a plain equality
+    # filter and crash on unrelated comparisons.
+    if op == "eq":
+        mask = comparable.eq(value)
+    elif op == "ne":
+        mask = comparable.ne(value)
+    elif op == "gt":
+        mask = comparable.gt(value)
+    elif op == "gte":
+        mask = comparable.ge(value)
+    elif op == "lt":
+        mask = comparable.lt(value)
+    else:
+        mask = comparable.le(value)
+    return mask.fillna(False)
 
 
 def _apply_filter(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
@@ -170,6 +195,8 @@ def _apply_filter(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
             raise ProcessingError("Filter step needs 'column' or 'conditions'.")
         conditions = [{k: params[k] for k in ("column", "operator", "value") if k in params}]
     logic = str(params.get("logic", "and")).lower()
+    if logic not in {"and", "or"}:
+        raise ProcessingError(f"Filter step has invalid logic '{logic}'. Use 'and' or 'or'.")
     masks = [_condition_mask(frame, dict(c)) for c in conditions]
     if not masks:
         return frame
@@ -177,6 +204,40 @@ def _apply_filter(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     for mask in masks[1:]:
         combined = (combined & mask) if logic == "and" else (combined | mask)
     return frame[combined].copy()
+
+
+# ---------------------------------------------------------------------------
+# Numeric coercion policy
+# ---------------------------------------------------------------------------
+
+_NUMERIC_AGGS = {"sum", "mean", "median", "std"}
+
+
+def _coerce_numeric(series: pd.Series, context: str) -> pd.Series:
+    """Coerce to numeric, refusing values that are not genuinely numeric.
+
+    Numeric-looking strings ("10") convert; anything else is an
+    explicit error naming example offenders, instead of silently
+    dropping values (or, for grouped string sums, concatenating them).
+    Genuinely missing values stay missing."""
+    coerced = pd.to_numeric(series, errors="coerce")
+    bad_mask = coerced.isna() & series.notna()
+    if bool(bad_mask.any()):
+        examples = series[bad_mask].astype(str).unique()[:3].tolist()
+        raise ProcessingError(
+            f"{context}: column '{series.name}' has {int(bad_mask.sum())} "
+            f"value(s) that are not numeric (e.g. {examples}). Convert or "
+            "clean the column first (e.g. with convert_type / filter)."
+        )
+    return coerced
+
+
+def _exact_int_series(series: pd.Series) -> pd.Series:
+    """Promote fixed-width integers to Python ints so sums/cumsums are
+    exact instead of silently overflowing int64."""
+    if pd.api.types.is_integer_dtype(series) and not pd.api.types.is_bool_dtype(series):
+        return series.astype(object)
+    return series
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +253,7 @@ def _as_list(value: Any) -> list[str]:
     return [str(item) for item in value]
 
 
-def _step_select(frame, params, _datasets):
+def _step_select(frame, params, _datasets, _notes=None):
     columns = _as_list(params.get("columns"))
     if not columns:
         raise ProcessingError("Step 'select' needs 'columns'.")
@@ -200,7 +261,7 @@ def _step_select(frame, params, _datasets):
     return frame[columns].copy()
 
 
-def _step_rename(frame, params, _datasets):
+def _step_rename(frame, params, _datasets, _notes=None):
     mapping = params.get("mapping") or params.get("columns") or {}
     if not isinstance(mapping, dict) or not mapping:
         raise ProcessingError("Step 'rename' needs 'mapping': {old: new}.")
@@ -208,13 +269,13 @@ def _step_rename(frame, params, _datasets):
     return frame.rename(columns={str(k): str(v) for k, v in mapping.items()})
 
 
-def _step_drop_columns(frame, params, _datasets):
+def _step_drop_columns(frame, params, _datasets, _notes=None):
     columns = _as_list(params.get("columns"))
     require_columns(frame, columns, "Step 'drop_columns'")
     return frame.drop(columns=columns)
 
 
-def _step_sort(frame, params, _datasets):
+def _step_sort(frame, params, _datasets, _notes=None):
     by = _as_list(params.get("by") or params.get("columns"))
     if not by:
         raise ProcessingError("Step 'sort' needs 'by'.")
@@ -223,7 +284,7 @@ def _step_sort(frame, params, _datasets):
     return frame.sort_values(by=by, ascending=ascending, kind="stable").reset_index(drop=True)
 
 
-def _step_dedupe(frame, params, _datasets):
+def _step_dedupe(frame, params, _datasets, _notes=None):
     subset = _as_list(params.get("subset")) or None
     if subset:
         require_columns(frame, subset, "Step 'dedupe'")
@@ -231,7 +292,7 @@ def _step_dedupe(frame, params, _datasets):
     return frame.drop_duplicates(subset=subset, keep=keep).reset_index(drop=True)
 
 
-def _step_fill_missing(frame, params, _datasets):
+def _step_fill_missing(frame, params, _datasets, _notes=None):
     result = frame.copy()
     values = params.get("values") or {}
     if params.get("column") is not None:
@@ -265,7 +326,7 @@ def _step_fill_missing(frame, params, _datasets):
     return result.fillna(value={str(k): v for k, v in values.items()})
 
 
-def _step_drop_missing(frame, params, _datasets):
+def _step_drop_missing(frame, params, _datasets, _notes=None):
     subset = _as_list(params.get("subset") or params.get("columns")) or None
     if subset:
         require_columns(frame, subset, "Step 'drop_missing'")
@@ -297,7 +358,7 @@ def _convert_series(series: pd.Series, target: str, errors: str) -> pd.Series:
     )
 
 
-def _step_convert_type(frame, params, _datasets):
+def _step_convert_type(frame, params, _datasets, notes=None):
     types = params.get("types") or {}
     if params.get("column") is not None:
         types = {str(params["column"]): str(params.get("to", "string"))}
@@ -307,16 +368,25 @@ def _step_convert_type(frame, params, _datasets):
     errors = str(params.get("errors", "coerce"))
     result = frame.copy()
     for col, target in types.items():
+        before = result[str(col)]
         try:
-            result[str(col)] = _convert_series(result[str(col)], str(target), errors)
+            converted = _convert_series(before, str(target), errors)
         except ProcessingError:
             raise
         except Exception as exc:
             raise ProcessingError(f"Cannot convert column '{col}' to {target}: {exc}") from exc
+        if notes is not None and errors == "coerce":
+            coerced_count = int((converted.isna() & before.notna()).sum())
+            if coerced_count:
+                notes.append(
+                    f"convert_type: {coerced_count} value(s) in '{col}' could not be "
+                    f"converted to {target} and were set to missing."
+                )
+        result[str(col)] = converted
     return result
 
 
-def _step_date_normalize(frame, params, _datasets):
+def _step_date_normalize(frame, params, _datasets, notes=None):
     columns = _as_list(params.get("columns") or params.get("column"))
     if not columns:
         raise ProcessingError("Step 'date_normalize' needs 'column' or 'columns'.")
@@ -325,7 +395,15 @@ def _step_date_normalize(frame, params, _datasets):
     fmt = params.get("format")
     truncate = params.get("truncate")
     for col in columns:
-        parsed = pd.to_datetime(result[col], format=fmt, errors="coerce")
+        original = result[col]
+        parsed = pd.to_datetime(original, format=fmt, errors="coerce")
+        if notes is not None:
+            unparsed = int((parsed.isna() & original.notna()).sum())
+            if unparsed:
+                notes.append(
+                    f"date_normalize: {unparsed} value(s) in '{col}' were not "
+                    "recognisable dates and were set to missing."
+                )
         if truncate == "month":
             parsed = parsed.dt.to_period("M").dt.to_timestamp()
         elif truncate == "day":
@@ -334,13 +412,19 @@ def _step_date_normalize(frame, params, _datasets):
     return result
 
 
-def _step_calculate(frame, params, _datasets):
+def _step_calculate(frame, params, _datasets, notes=None):
     column = params.get("column") or params.get("output")
     expression = params.get("expression")
     if not column or not expression:
         raise ProcessingError("Step 'calculate' needs 'column' (new name) and 'expression'.")
     result = frame.copy()
-    values = evaluate_expression(result, str(expression))
+    values = evaluate_expression(result, str(expression), notes=notes)
+    infinite = int(np.isinf(pd.to_numeric(values, errors="coerce")).sum())
+    if notes is not None and infinite:
+        notes.append(
+            f"calculate '{column}': {infinite} result(s) were infinite "
+            "(e.g. division by zero) and were set to missing."
+        )
     result[str(column)] = values.replace([np.inf, -np.inf], np.nan)
     return result
 
@@ -368,12 +452,29 @@ def _aggregation_specs(params: dict[str, Any]) -> list[tuple[str, str, str]]:
     return specs
 
 
-def _step_group_aggregate(frame, params, _datasets):
+def _step_group_aggregate(frame, params, _datasets, _notes=None):
     group_by = _as_list(params.get("group_by"))
     specs = _aggregation_specs(params)
     require_columns(
         frame, group_by + [s[0] for s in specs if s[0] != "__count__"], "Step 'group_aggregate'"
     )
+    # Unify with metric aggregation: numeric aggregations coerce
+    # numeric-looking strings ("10" -> 10) and reject the rest, instead
+    # of pandas' default string concatenation for grouped sums.
+    frame = frame.copy()
+    numeric_columns = {col for col, agg, _out in specs if agg in _NUMERIC_AGGS}
+    extent_columns = {col for col, agg, _out in specs if agg in {"min", "max"}}
+    for col in numeric_columns:
+        frame[col] = _coerce_numeric(frame[col], "Step 'group_aggregate'")
+    for col in extent_columns - numeric_columns:
+        series = frame[col]
+        if not pd.api.types.is_numeric_dtype(series):
+            coerced = pd.to_numeric(series, errors="coerce")
+            if not bool((coerced.isna() & series.notna()).any()):
+                frame[col] = coerced  # numeric-looking strings compare numerically
+    for col, agg, _out in specs:
+        if agg == "sum":
+            frame[col] = _exact_int_series(frame[col])
     named = {output: (column, agg) for column, agg, output in specs}
     if group_by:
         grouped = frame.groupby(group_by, dropna=False, sort=True)
@@ -396,13 +497,13 @@ def _named_agg(named: dict[str, tuple[str, str]]) -> dict[str, Any]:
     return dict(named)
 
 
-def _step_running_total(frame, params, _datasets):
+def _step_running_total(frame, params, _datasets, _notes=None):
     column = str(params.get("column", ""))
     require_columns(frame, [column], "Step 'running_total'")
     output = str(params.get("output") or f"{column}_running_total")
     group_by = _as_list(params.get("group_by"))
     result = frame.copy()
-    numeric = pd.to_numeric(result[column], errors="coerce")
+    numeric = _exact_int_series(_coerce_numeric(result[column], "Step 'running_total'"))
     if group_by:
         require_columns(result, group_by, "Step 'running_total'")
         result[output] = numeric.groupby([result[g] for g in group_by]).cumsum()
@@ -411,23 +512,36 @@ def _step_running_total(frame, params, _datasets):
     return result
 
 
-def _step_pct_change(frame, params, _datasets):
+def _step_pct_change(frame, params, _datasets, notes=None):
     column = str(params.get("column", ""))
     require_columns(frame, [column], "Step 'pct_change'")
     output = str(params.get("output") or f"{column}_pct_change")
     periods = int(params.get("periods", 1))
     group_by = _as_list(params.get("group_by"))
     result = frame.copy()
-    numeric = pd.to_numeric(result[column], errors="coerce")
+    numeric = _coerce_numeric(result[column], "Step 'pct_change'")
+    # fill_method=None: never forward-fill missing values before computing
+    # a change (that would invent observations). A zero previous value has
+    # no meaningful percentage change, so it becomes missing -- not inf.
     if group_by:
         require_columns(result, group_by, "Step 'pct_change'")
-        result[output] = numeric.groupby([result[g] for g in group_by]).pct_change(periods=periods)
+        grouped = numeric.groupby([result[g] for g in group_by])
+        previous = grouped.shift(periods)
+        change = grouped.pct_change(periods=periods, fill_method=None)
     else:
-        result[output] = numeric.pct_change(periods=periods)
+        previous = numeric.shift(periods)
+        change = numeric.pct_change(periods=periods, fill_method=None)
+    zero_denominators = int(((previous == 0) & numeric.notna()).sum())
+    if notes is not None and zero_denominators:
+        notes.append(
+            f"pct_change '{column}': {zero_denominators} value(s) follow a zero, "
+            "where a percentage change is undefined; they were set to missing."
+        )
+    result[output] = change.replace([np.inf, -np.inf], np.nan)
     return result
 
 
-def _step_merge(frame, params, datasets):
+def _step_merge(frame, params, datasets, _notes=None):
     other_name = params.get("other") or params.get("dataset")
     if not other_name or str(other_name) not in datasets:
         raise ProcessingError(
@@ -449,24 +563,79 @@ def _step_merge(frame, params, datasets):
         kwargs["right_on"] = _as_list(params["right_on"])
     elif how != "cross":
         raise ProcessingError("Step 'merge' needs 'on' (or 'left_on'/'right_on').")
-    return frame.merge(other, **kwargs)
+    validate = params.get("validate")
+    if validate is not None:
+        if str(validate) not in {"one_to_one", "one_to_many", "many_to_one", "many_to_many"}:
+            raise ProcessingError(
+                "Step 'merge' validate must be one_to_one, one_to_many, "
+                "many_to_one, or many_to_many."
+            )
+        kwargs["validate"] = str(validate)
+    max_rows = int(params.get("max_result_rows", 1_000_000))
+    if max_rows <= 0:
+        raise ProcessingError("Step 'merge' max_result_rows must be positive.")
+    estimated = _estimate_merge_rows(frame, other, kwargs, how)
+    if estimated > max_rows:
+        raise ProcessingError(
+            f"Step 'merge' would produce an estimated {estimated:,} rows "
+            f"(limit {max_rows:,}) from {len(frame):,} x {len(other):,} input rows. "
+            "This usually means duplicated join keys are fanning out. Dedupe or "
+            "aggregate first, set validate: to check cardinality, or raise "
+            "max_result_rows if the expansion is intended."
+        )
+    try:
+        merged = frame.merge(other, **kwargs)
+    except Exception as exc:
+        raise ProcessingError(f"Step 'merge' failed: {exc}") from exc
+    if len(merged) > max_rows:
+        raise ProcessingError(
+            f"Step 'merge' produced {len(merged):,} rows, above max_result_rows "
+            f"({max_rows:,}). Raise the limit only if this expansion is intended."
+        )
+    return merged
 
 
-def _step_append(frame, params, datasets):
+def _estimate_merge_rows(left, right, kwargs, how) -> int:
+    """Worst-case output rows from join-key multiplicities, computed on
+    per-key counts (small) rather than by materialising the merge."""
+    if how == "cross":
+        return len(left) * len(right)
+    left_keys = kwargs.get("on") or kwargs.get("left_on") or []
+    right_keys = kwargs.get("on") or kwargs.get("right_on") or []
+    if not left_keys:
+        return len(left) * max(1, len(right))
+    left_counts = left.groupby(list(left_keys), dropna=False).size().rename("_lc").reset_index()
+    right_counts = right.groupby(list(right_keys), dropna=False).size().rename("_rc").reset_index()
+    right_counts = right_counts.rename(columns=dict(zip(right_keys, left_keys, strict=False)))
+    both = left_counts.merge(right_counts, on=list(left_keys), how="outer")
+    lc = both["_lc"].fillna(0).astype("int64")
+    rc = both["_rc"].fillna(0).astype("int64")
+    if how == "inner":
+        return int((lc * rc).sum())
+    if how == "left":
+        return int((lc * rc.where(rc > 0, 1)).sum())
+    if how == "right":
+        return int((lc.where(lc > 0, 1) * rc).sum())
+    matched = (lc * rc).where((lc > 0) & (rc > 0), 0)
+    unmatched = (lc + rc).where((lc == 0) | (rc == 0), 0)
+    return int((matched + unmatched).sum())
+
+
+def _step_append(frame, params, datasets, _notes=None):
     other_name = params.get("other") or params.get("dataset")
     if not other_name or str(other_name) not in datasets:
         raise ProcessingError(f"Step 'append' references unknown dataset '{other_name}'.")
     return pd.concat([frame, datasets[str(other_name)]], ignore_index=True)
 
 
-def _step_limit(frame, params, _datasets):
+def _step_limit(frame, params, _datasets, _notes=None):
     rows = int(params.get("rows", params.get("n", 0)))
     if rows <= 0:
         raise ProcessingError("Step 'limit' needs a positive 'rows'.")
     return frame.head(rows).copy()
 
 
-def _step_validate(frame, params, _datasets):
+def _step_validate(frame, params, _datasets, _notes=None):
     validate_frame(
         frame,
         required_columns=_as_list(params.get("required_columns")) or None,
@@ -477,7 +646,7 @@ def _step_validate(frame, params, _datasets):
     return frame
 
 
-def _step_describe(frame, params, _datasets):
+def _step_describe(frame, params, _datasets, _notes=None):
     columns = _as_list(params.get("columns")) or [
         c for c in frame.columns if pd.api.types.is_numeric_dtype(frame[c])
     ]
@@ -502,11 +671,162 @@ def _step_describe(frame, params, _datasets):
     return pd.DataFrame(rows)
 
 
+def _step_data_quality(frame, params, _datasets, notes=None):
+    """Explicit data-quality rules with visible violation counts.
+
+    Each rule: {column|columns, check: not_null|type|range|unique,
+    on_error: fail|drop|coerce (range also accepts clamp), plus
+    check-specific keys (type:, min:/max:)}. Handled violations are
+    counted into ``notes`` so they surface in the report's warnings —
+    nothing is silently dropped or coerced."""
+    rules = params.get("rules")
+    if not isinstance(rules, list) or not rules:
+        raise ProcessingError("Step 'data_quality' needs a non-empty 'rules' list.")
+    result = frame.copy()
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise ProcessingError(f"Data-quality rules must be mappings, got {rule!r}.")
+        check = str(rule.get("check") or rule.get("rule") or "")
+        on_error = str(rule.get("on_error", "fail")).lower()
+        if on_error not in {"fail", "drop", "coerce", "clamp"}:
+            raise ProcessingError(
+                f"Data-quality rule has invalid on_error '{on_error}'. "
+                "Use fail, drop, or coerce (clamp for range)."
+            )
+        columns = _as_list(rule.get("columns") or rule.get("column"))
+        if not columns:
+            raise ProcessingError(f"Data-quality rule {rule!r} needs 'column'.")
+        require_columns(result, columns, "Step 'data_quality'")
+        label = str(rule.get("name") or f"{check}({', '.join(columns)})")
+
+        def _fail(count: int, examples: str, _label: str = label) -> None:
+            raise ValidationError(
+                f"Data quality rule '{_label}' failed: {count} violating "
+                f"value(s)/row(s) (e.g. {examples}). Fix the data or set "
+                "on_error: drop/coerce to handle them explicitly."
+            )
+
+        if check == "not_null":
+            if on_error in {"coerce", "clamp"}:
+                raise ProcessingError("not_null rules support on_error: fail or drop.")
+            bad = result[columns].isna().any(axis=1)
+            count = int(bad.sum())
+            if count and on_error == "fail":
+                _fail(count, f"missing in {columns}")
+            if count:
+                result = result[~bad].reset_index(drop=True)
+                if notes is not None:
+                    notes.append(f"Data quality '{label}': dropped {count} row(s).")
+        elif check == "unique":
+            if on_error in {"coerce", "clamp"}:
+                raise ProcessingError("unique rules support on_error: fail or drop.")
+            dup_mask = result.duplicated(subset=columns, keep=False)
+            extra = result.duplicated(subset=columns, keep="first")
+            count = int(dup_mask.sum())
+            if count and on_error == "fail":
+                sample = result.loc[dup_mask, columns].head(2).to_dict("records")
+                _fail(count, str(sample))
+            if count:
+                result = result[~extra].reset_index(drop=True)
+                if notes is not None:
+                    notes.append(
+                        f"Data quality '{label}': dropped {int(extra.sum())} "
+                        "duplicate row(s) (kept first occurrence)."
+                    )
+        elif check == "type":
+            if len(columns) != 1:
+                raise ProcessingError("type rules take exactly one column.")
+            column = columns[0]
+            target = str(rule.get("as") or rule.get("type") or "")
+            series = result[column]
+            if target in {"number", "numeric", "float", "int", "integer"}:
+                converted = pd.to_numeric(series, errors="coerce")
+                bad = converted.isna() & series.notna()
+                coercion = converted
+            elif target in {"date", "datetime"}:
+                converted = pd.to_datetime(series, errors="coerce")
+                bad = converted.isna() & series.notna()
+                coercion = converted
+            elif target in {"string", "str", "text"}:
+                bad = series.notna() & ~series.map(lambda v: isinstance(v, str))
+                coercion = series.astype("string")
+            elif target in {"bool", "boolean"}:
+                bad = series.notna() & ~series.map(
+                    lambda v: isinstance(v, (bool, np.bool_)) or str(v).strip().lower() in _BOOL_MAP
+                )
+                coercion = series.map(
+                    lambda v: (
+                        _BOOL_MAP.get(str(v).strip().lower(), v)
+                        if pd.notna(v) and not isinstance(v, (bool, np.bool_))
+                        else v
+                    )
+                )
+                coercion = coercion.where(~bad, pd.NA).astype("boolean")
+            else:
+                raise ProcessingError(
+                    f"Data-quality type rule needs type: number|date|string|bool, got {target!r}."
+                )
+            count = int(bad.sum())
+            if count and on_error == "fail":
+                _fail(count, ", ".join(series[bad].astype(str).unique()[:3].tolist()))
+            if count and on_error == "drop":
+                result = result[~bad].reset_index(drop=True)
+                if notes is not None:
+                    notes.append(f"Data quality '{label}': dropped {count} row(s).")
+            elif on_error == "coerce":
+                result[column] = coercion
+                if count and notes is not None:
+                    notes.append(
+                        f"Data quality '{label}': coerced the column to {target}; "
+                        f"{count} value(s) became missing."
+                    )
+        elif check == "range":
+            if len(columns) != 1:
+                raise ProcessingError("range rules take exactly one column.")
+            column = columns[0]
+            low, high = rule.get("min"), rule.get("max")
+            if low is None and high is None:
+                raise ProcessingError("range rules need 'min' and/or 'max'.")
+            series = result[column]
+            numeric = pd.to_numeric(series, errors="coerce")
+            non_numeric = numeric.isna() & series.notna()
+            out_of_range = pd.Series(False, index=result.index)
+            if low is not None:
+                out_of_range |= numeric < float(low)
+            if high is not None:
+                out_of_range |= numeric > float(high)
+            bad = (out_of_range | non_numeric).fillna(False)
+            count = int(bad.sum())
+            if count and on_error == "fail":
+                _fail(count, ", ".join(series[bad].astype(str).unique()[:3].tolist()))
+            if count and on_error == "drop":
+                result = result[~bad].reset_index(drop=True)
+                if notes is not None:
+                    notes.append(f"Data quality '{label}': dropped {count} row(s).")
+            elif count and on_error in {"coerce", "clamp"}:
+                clamped = numeric.clip(
+                    lower=float(low) if low is not None else None,
+                    upper=float(high) if high is not None else None,
+                )
+                result[column] = clamped
+                if notes is not None:
+                    notes.append(
+                        f"Data quality '{label}': clamped {int(out_of_range.sum())} "
+                        f"value(s) to [{low}, {high}]; {int(non_numeric.sum())} "
+                        "non-numeric value(s) became missing."
+                    )
+        else:
+            raise ProcessingError(
+                f"Unknown data-quality check '{check}'. Use not_null, type, range, or unique."
+            )
+    return result
+
+
 _STEPS = {
     "select": _step_select,
     "rename": _step_rename,
     "drop_columns": _step_drop_columns,
-    "filter": lambda f, p, d: _apply_filter(f, p),
+    "filter": lambda f, p, d, n=None: _apply_filter(f, p),
     "sort": _step_sort,
     "dedupe": _step_dedupe,
     "drop_duplicates": _step_dedupe,
@@ -527,6 +847,8 @@ _STEPS = {
     "head": _step_limit,
     "validate": _step_validate,
     "describe": _step_describe,
+    "data_quality": _step_data_quality,
+    "quality": _step_data_quality,
 }
 
 
@@ -534,6 +856,7 @@ def apply_step(
     frame: pd.DataFrame,
     step: dict[str, Any] | Any,
     datasets: dict[str, pd.DataFrame] | None = None,
+    notes: list[str] | None = None,
 ) -> pd.DataFrame:
     op = step.op if hasattr(step, "op") else step.get("op")  # type: ignore[union-attr]
     params = (
@@ -551,7 +874,7 @@ def apply_step(
             f"Unknown processing step '{op}'. Supported steps: {', '.join(sorted(set(_STEPS)))}"
         )
     try:
-        return handler(frame, params, datasets or {})
+        return handler(frame, params, datasets or {}, notes)
     except ProcessingError:
         raise
     except Exception as exc:
@@ -562,8 +885,9 @@ def apply_pipeline(
     frame: pd.DataFrame,
     steps: list[Any],
     datasets: dict[str, pd.DataFrame] | None = None,
+    notes: list[str] | None = None,
 ) -> pd.DataFrame:
     result = frame
     for step in steps:
-        result = apply_step(result, step, datasets)
+        result = apply_step(result, step, datasets, notes=notes)
     return result

@@ -94,6 +94,17 @@ def test_mask_url_hides_password():
     assert "***" in masked
 
 
+def test_mask_url_redacts_query_credentials():
+    masked = mask_url(
+        "postgresql://db.example.com/app?user=reader&password=q-secret"
+        "&sslpassword=tls-secret&application_name=reports&api_key=k-secret"
+    )
+    for secret in ("q-secret", "tls-secret", "k-secret"):
+        assert secret not in masked
+    assert "application_name=reports" in masked
+    assert "user=reader" in masked
+
+
 def test_expand_env(monkeypatch):
     monkeypatch.setenv("RG_TEST_SECRET", "value1")
     assert expand_env("prefix-${RG_TEST_SECRET}") == "prefix-value1"

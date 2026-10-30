@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from reportgen.errors import ConfigError, ExportError, SecurityError, SourceError
 
@@ -124,21 +124,71 @@ def ensure_output_dir(path: Path) -> Path:
 
 
 def mask_url(url: str | None) -> str:
-    """Mask any password in a database URL for safe logging."""
+    """Mask any password in a database URL for safe logging.
+
+    Covers the userinfo password *and* sensitive query/fragment
+    parameters (``?password=...``, ``&sslpassword=...``, tokens, keys),
+    which several drivers accept and which must never leak into logs,
+    errors, or report source labels."""
     if not url:
         return "(no url)"
     try:
         parts = urlsplit(url)
+        netloc = parts.netloc
         if parts.password:
             host = parts.hostname or ""
             if parts.port:
                 host = f"{host}:{parts.port}"
             user = parts.username or ""
             netloc = f"{user}:***@{host}" if user else host
-            return urlunsplit((parts.scheme, netloc, parts.path, parts.query, ""))
+        return urlunsplit(
+            (
+                parts.scheme,
+                netloc,
+                parts.path,
+                _redact_query(parts.query),
+                _redact_query(parts.fragment),
+            )
+        )
     except ValueError:
         return "(unparseable url — hidden)"
-    return url
+
+
+_SENSITIVE_QUERY_KEYS = (
+    "password",
+    "passwd",
+    "pwd",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "access_key",
+    "private_key",
+    "credential",
+)
+
+
+def _redact_query(query: str) -> str:
+    if not query:
+        return query
+    redacted: list[tuple[str, str]] = []
+    for key, value in parse_qsl(query, keep_blank_values=True):
+        lowered = key.lower()
+        if any(sensitive in lowered for sensitive in _SENSITIVE_QUERY_KEYS):
+            redacted.append((key, "***"))
+        else:
+            redacted.append((key, value))
+    return urlencode(redacted)
+
+
+def scrub_sensitive(text: str, secrets: list[str]) -> str:
+    """Remove known secret substrings (param values, passwords) from text
+    before it reaches an error message or log line."""
+    result = str(text)
+    for secret in secrets:
+        if secret:
+            result = result.replace(secret, "***")
+    return result
 
 
 def excel_safe_value(value: object) -> object:

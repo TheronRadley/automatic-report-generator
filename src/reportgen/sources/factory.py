@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -60,13 +61,20 @@ def infer_type(path: Path) -> str:
     return source_type
 
 
+def _dataset_name_for(path: Path) -> str:
+    """A valid source identifier derived from any filename — including
+    ones with spaces or punctuation ('my sales data.csv')."""
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", path.stem or "").strip("_-")
+    return cleaned or "data"
+
+
 def load_from_path(path: Path, table: str | None = None) -> LoadedDataset:
     """Load a single file by extension — backs `sources inspect`."""
     if not path.exists():
         raise SourceError(f"File not found: {path}")
     path = path.resolve()  # adapters resolve cfg.path against the base dir
     source_type = infer_type(path)
-    cfg_kwargs: dict = {"name": path.stem or "data", "type": source_type}
+    cfg_kwargs: dict = {"name": _dataset_name_for(path), "type": source_type}
     if source_type == "sqlite":
         cfg_kwargs["path"] = str(path)
         cfg_kwargs["table"] = table or _first_sqlite_table(path)

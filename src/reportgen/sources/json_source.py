@@ -57,30 +57,45 @@ def _to_frame(records: Any, file_label: str) -> pd.DataFrame:
     return pd.json_normalize(records)
 
 
-def load_json(cfg: SourceConfig, path: Path) -> LoadedDataset:
-    options = cfg.options
-    encoding = str(options.get("encoding", "utf-8"))
-    is_lines = cfg.type == "jsonl" or path.suffix.lower() in {".jsonl", ".ndjson"}
+def _read_jsonl(cfg: SourceConfig, path: Path, encoding: str) -> list[Any]:
+    """Stream JSON Lines without materialising the whole file as one
+    string; stop one record past ``max_rows`` so truncation is both
+    bounded and reported by ``finalise_frame``."""
+    records: list[Any] = []
+    limit = cfg.max_rows + 1 if cfg.max_rows is not None else None
     try:
-        text = path.read_text(encoding=encoding)
+        with path.open(encoding=encoding) as handle:
+            for lineno, line in enumerate(handle, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    raise SourceError(
+                        f"Invalid JSON on line {lineno} of {path.name}: {exc.msg}"
+                    ) from exc
+                if limit is not None and len(records) >= limit:
+                    break
     except UnicodeDecodeError as exc:
         raise SourceError(f"Cannot decode {path.name} with encoding '{encoding}'.") from exc
     except OSError as exc:
         raise SourceError(f"Cannot read JSON file {path}: {exc}") from exc
+    return records
 
+
+def load_json(cfg: SourceConfig, path: Path) -> LoadedDataset:
+    options = cfg.options
+    encoding = str(options.get("encoding", "utf-8"))
+    is_lines = cfg.type == "jsonl" or path.suffix.lower() in {".jsonl", ".ndjson"}
     if is_lines:
-        records: list[Any] = []
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if not line.strip():
-                continue
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError as exc:
-                raise SourceError(
-                    f"Invalid JSON on line {lineno} of {path.name}: {exc.msg}"
-                ) from exc
-        frame = _to_frame(records, path.name)
+        frame = _to_frame(_read_jsonl(cfg, path, encoding), path.name)
     else:
+        try:
+            text = path.read_text(encoding=encoding)
+        except UnicodeDecodeError as exc:
+            raise SourceError(f"Cannot decode {path.name} with encoding '{encoding}'.") from exc
+        except OSError as exc:
+            raise SourceError(f"Cannot read JSON file {path}: {exc}") from exc
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:

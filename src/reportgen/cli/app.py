@@ -22,7 +22,7 @@ from reportgen.automation.jobs import Job, JobStore, run_job, schedule_examples
 from reportgen.config.loader import load_config
 from reportgen.errors import ConfigError, ReportGenError
 from reportgen.logging_config import configure_logging
-from reportgen.reports.builder import run_report
+from reportgen.reports.builder import build_report, execute_report
 from reportgen.reports.templates import TEMPLATES, get_template
 from reportgen.sources.base import inspect_dataframe
 from reportgen.sources.factory import load_from_path
@@ -54,16 +54,38 @@ class ExportFormatOption(StrEnum):
     xlsx = "xlsx"
 
 
+def _parse_params(values: list[str] | None) -> dict[str, str]:
+    """Parse repeated --param KEY=VALUE options."""
+    parsed: dict[str, str] = {}
+    for item in values or []:
+        if "=" not in item:
+            raise ConfigError(
+                f"Parameter {item!r} must be given as KEY=VALUE, e.g. --param end_date=2026-01-31."
+            )
+        key, _, value = item.partition("=")
+        if not key.strip():
+            raise ConfigError(f"Parameter {item!r} has an empty name; use KEY=VALUE.")
+        parsed[key.strip()] = value
+    return parsed
+
+
 @contextmanager
 def _guard(json_mode: bool = False):
-    """Turn expected errors into a clean message + non-zero exit."""
+    """Turn expected errors into a clean message + non-zero exit.
+
+    Errors carrying ``outputs`` (a report run that created some files
+    before a later format failed) include those files in the JSON, so
+    automation can retry/clean up safely."""
     try:
         yield
     except ReportGenError as exc:
+        outputs = [str(path) for path in getattr(exc, "outputs", []) or []]
         if json_mode:
-            console.print_json(json.dumps({"error": str(exc), "ok": False}))
+            console.print_json(json.dumps({"error": str(exc), "ok": False, "outputs": outputs}))
         else:
             err_console.print(f"[red]Error:[/red] {exc}")
+            for output in outputs:
+                err_console.print(f"Already created: {output}")
         raise typer.Exit(code=exc.exit_code) from exc
 
 
@@ -130,23 +152,29 @@ def validate_command(
     ),
     json_output: bool = typer.Option(False, "--json", help="JSON output."),
 ) -> None:
-    """Validate a report definition (and optionally its data sources)."""
+    """Validate a report definition.
+
+    With source checks enabled (default) the report is fully *built* —
+    sources loaded, pipelines run, metrics computed, charts rendered
+    into a throwaway directory — so anything that would fail a real
+    ``generate`` also fails validation, before any export exists."""
     with _guard(json_output):
         parsed, base_dir = load_config(config)
         get_template(parsed.report.template)  # unknown template is an error
         source_info: list[dict] = []
+        build_warnings: list[str] = []
         if check_sources:
-            from reportgen.sources.factory import load_dataset
+            import tempfile
 
-            max_bytes = int(parsed.options.max_input_mb * 1024 * 1024)
+            with tempfile.TemporaryDirectory(prefix="reportgen-validate-") as tmp:
+                document = build_report(parsed, base_dir, Path(tmp))
+            build_warnings = document.warnings
             for source in parsed.sources:
-                loaded = load_dataset(source, base_dir, max_input_bytes=max_bytes)
                 source_info.append(
                     {
                         "name": source.name,
                         "type": source.type,
-                        "rows": len(loaded.frame),
-                        "columns": [str(c) for c in loaded.frame.columns],
+                        "rows": document.dataset_rows.get(source.name),
                     }
                 )
         result = {
@@ -155,6 +183,7 @@ def validate_command(
             "title": parsed.report.title,
             "template": parsed.report.template,
             "sources": source_info,
+            "warnings": build_warnings,
         }
         if json_output:
             console.print_json(json.dumps(result))
@@ -164,10 +193,9 @@ def validate_command(
                 f"(template: {parsed.report.template})"
             )
             for info in source_info:
-                console.print(
-                    f"  • {info['name']} ({info['type']}): {info['rows']} rows, "
-                    f"columns [{', '.join(info['columns'])}]"
-                )
+                console.print(f"  • {info['name']} ({info['type']}): {info['rows']} rows")
+            for warning in build_warnings:
+                console.print(f"  Warning: {warning}")
 
 
 @app.command("generate")
@@ -179,6 +207,19 @@ def generate_command(
     all_formats: bool = typer.Option(False, "--all", help="Export pdf + html + xlsx."),
     output_dir: Path = typer.Option(None, "--output-dir", "-o", help="Override output dir."),
     overwrite: bool = typer.Option(False, "--overwrite", help="Replace existing files."),
+    params: list[str] = typer.Option(
+        None, "--param", help="Parameter override KEY=VALUE (repeatable)."
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Build fully (load, process, render charts) but write no report files.",
+    ),
+    manifest: Path = typer.Option(
+        None,
+        "--manifest",
+        help="Write a run manifest JSON (inputs, fingerprints, rows, warnings).",
+    ),
     json_output: bool = typer.Option(False, "--json", help="JSON output."),
 ) -> None:
     """Generate a report from a report definition."""
@@ -188,22 +229,55 @@ def generate_command(
             if all_formats
             else ([f.value for f in formats] if formats else None)
         )
-        if json_output or _STATE.get("quiet"):
-            outputs = run_report(
-                config, formats=chosen, output_dir=output_dir, overwrite=overwrite or None
+        overrides = _parse_params(params)
+
+        def _execute():
+            return execute_report(
+                config,
+                formats=chosen,
+                output_dir=output_dir,
+                overwrite=overwrite or None,
+                parameters=overrides or None,
+                dry_run=dry_run,
+                manifest_path=manifest,
             )
+
+        if json_output or _STATE.get("quiet"):
+            result = _execute()
         else:
             with console.status("Generating report…", spinner="dots"):
-                outputs = run_report(
-                    config, formats=chosen, output_dir=output_dir, overwrite=overwrite or None
-                )
+                result = _execute()
         if json_output:
             # Plain print keeps stdout parseable by the job runner.
-            print(json.dumps({"ok": True, "outputs": [str(p) for p in outputs]}))
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "dry_run": dry_run,
+                        "outputs": [str(p) for p in result.outputs],
+                        "output_status": result.output_status,
+                        "manifest": str(manifest) if manifest else None,
+                    }
+                )
+            )
+        elif dry_run:
+            console.print("[bold]Dry run — nothing was written.[/bold]")
+            for name, rows in result.document.dataset_rows.items():
+                console.print(f"  dataset {name}: {rows} rows")
+            for metric in result.document.metrics:
+                console.print(f"  metric {metric.name}: {metric.formatted}")
+            for status in result.output_status:
+                console.print(f"  would write: {status['path']}")
+            for warning in result.document.warnings:
+                console.print(f"  Warning: {warning}")
+            if manifest:
+                console.print(f"Manifest: {manifest}")
         else:
-            for path in outputs:
+            for path in result.outputs:
                 console.print(f"[green]✓[/green] {path}")
-            console.print(f"Generated {len(outputs)} file(s).")
+            if manifest:
+                console.print(f"Manifest: {manifest}")
+            console.print(f"Generated {len(result.outputs)} file(s).")
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +327,7 @@ def sources_types(json_output: bool = typer.Option(False, "--json")) -> None:
         {"type": "jsonl", "notes": "JSON Lines (one object per line)"},
         {"type": "sqlite", "notes": "Read-only file access, SELECT queries or table"},
         {"type": "postgres", "notes": "Read-only sessions; needs the postgres extra"},
-        {"type": "database", "notes": "Any SQLAlchemy URL (read-only enforced)"},
+        {"type": "database", "notes": "SQLite/PostgreSQL by URL only (read-only enforced)"},
     ]
     if json_output:
         console.print_json(json.dumps({"types": types}))
@@ -352,6 +426,12 @@ def jobs_add(
         "--retention",
         help="Keep only the most recent N runs' files (default: keep all).",
     ),
+    params: list[str] = typer.Option(
+        None,
+        "--param",
+        help="Parameter KEY=VALUE passed to every run (repeatable). "
+        "Date tokens like previous_month_start resolve at run time.",
+    ),
 ) -> None:
     """Save a repeatable report job."""
     with _guard():
@@ -364,6 +444,7 @@ def jobs_add(
             overwrite=overwrite,
             timeout_seconds=timeout,
             retention_keep=retention,
+            parameters=_parse_params(params),
         )
         JobStore().add_job(job)
         console.print(f"Saved job '{name}' → {job.config}")

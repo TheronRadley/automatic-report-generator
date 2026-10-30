@@ -167,13 +167,35 @@ def _metrics_table(document: ReportDocument, styles: dict, width: float) -> Tabl
     return table
 
 
-def _data_table(frame, styles: dict, width: float, max_rows: int) -> Table:
+_MAX_CELL_CHARS = 500
+
+
+def _pdf_cell(value, style) -> tuple[Paragraph, bool]:
+    """Format one cell, truncating very long text for the PDF display.
+
+    A table row cannot split across pages in ReportLab, so an untruncated
+    multi-thousand-character cell would make the whole export fail with
+    'flowable too large'. The Excel export keeps full values; truncation
+    here is flagged to the caller so it can be disclosed."""
+    text = format_cell(value)
+    truncated = len(text) > _MAX_CELL_CHARS
+    if truncated:
+        text = text[:_MAX_CELL_CHARS].rstrip() + " …"
+    return _p(text, style), truncated
+
+
+def _data_table(frame, styles: dict, width: float, max_rows: int) -> tuple[Table, bool]:
     shown = frame.head(max_rows)
     headers = [_p(str(col), styles["cellhead"]) for col in frame.columns]
-    body = [
-        [_p(format_cell(value), styles["cell"]) for value in row]
-        for row in shown.itertuples(index=False)
-    ]
+    body = []
+    any_truncated = False
+    for row in shown.itertuples(index=False):
+        cells = []
+        for value in row:
+            paragraph, truncated = _pdf_cell(value, styles["cell"])
+            any_truncated = any_truncated or truncated
+            cells.append(paragraph)
+        body.append(cells)
     col_width = width / max(1, len(frame.columns))
     table = Table([headers, *body], colWidths=[col_width] * len(frame.columns), repeatRows=1)
     table.setStyle(
@@ -190,14 +212,17 @@ def _data_table(frame, styles: dict, width: float, max_rows: int) -> Table:
             ]
         )
     )
-    return table
+    return table, any_truncated
 
 
 def write_pdf(document: ReportDocument, path: Path) -> None:
     regular, bold = _register_fonts()
     styles = _styles(regular, bold)
-    page_w, _ = A4
+    page_w, page_h = A4
     usable_width = page_w - 36 * mm
+    # A chart must fit within the text frame in BOTH dimensions or
+    # ReportLab refuses the flowable. Leave room for the heading.
+    max_image_height = page_h - 38 * mm - 24
 
     def _header_footer(canvas, doc) -> None:
         canvas.saveState()
@@ -248,8 +273,11 @@ def write_pdf(document: ReportDocument, path: Path) -> None:
                 story.append(_p(section.description, styles["body"]))
             if section.chart_path and section.chart_path.exists():
                 image = Image(str(section.chart_path))
-                ratio = usable_width / image.imageWidth
-                image.drawWidth = usable_width
+                ratio = min(
+                    usable_width / image.imageWidth,
+                    max_image_height / image.imageHeight,
+                )
+                image.drawWidth = image.imageWidth * ratio
                 image.drawHeight = image.imageHeight * ratio
                 story.append(image)
             else:
@@ -260,7 +288,16 @@ def write_pdf(document: ReportDocument, path: Path) -> None:
             if section.table is not None and not section.table.empty:
                 cap = section.display_cap(document.max_table_rows)
                 shown = min(cap, len(section.table))
-                story.append(_data_table(section.table, styles, usable_width, cap))
+                table, truncated_cells = _data_table(section.table, styles, usable_width, cap)
+                story.append(table)
+                if truncated_cells:
+                    story.append(
+                        _p(
+                            "Long cell values are truncated in this PDF; "
+                            "the Excel export contains full values.",
+                            styles["small"],
+                        )
+                    )
                 if len(section.table) > shown:
                     story.append(
                         _p(

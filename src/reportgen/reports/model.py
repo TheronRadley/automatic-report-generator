@@ -22,6 +22,7 @@ class MetricResult:
     formatted: str
     number_format: str = "number"
     dataset: str = ""
+    decimals: int = 2
 
 
 @dataclass
@@ -63,10 +64,17 @@ class ReportDocument:
     sources: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     max_table_rows: int = 100
+    currency: str = "$"
+    timezone_name: str = "UTC"
+    # Rows per dataset name (sources and pipeline outputs), for the
+    # dry-run output and the run manifest.
+    dataset_rows: dict[str, int] = field(default_factory=dict)
+    # Effective run parameters after date-token resolution.
+    parameters: dict[str, object] = field(default_factory=dict)
 
     @property
     def generated_label(self) -> str:
-        return self.generated_at.strftime("%Y-%m-%d %H:%M UTC")
+        return self.generated_at.strftime("%Y-%m-%d %H:%M %Z")
 
     def metric_map(self) -> dict[str, MetricResult]:
         return {m.name: m for m in self.metrics}

@@ -1,0 +1,55 @@
+# Parameterised monthly sales report — the shape scheduled jobs need.
+#
+# The defaults below cover the synthetic demo window so the example runs
+# as-is. For real scheduling, override with run-time date tokens, e.g.:
+#   reportgen generate examples/configs/monthly-sales-window.yaml --all \
+#     --param from_date=previous_month_start --param to_date=previous_month_end
+# or save them on a job:
+#   reportgen jobs add monthly-sales examples/configs/monthly-sales-window.yaml \
+#     --param from_date=previous_month_start --param to_date=previous_month_end
+# Try it without writing files first: add --dry-run --manifest run.json
+version: 1
+report:
+  title: Monthly Sales Window
+  subtitle: Synthetic sales data — for demonstration only
+  template: sales
+  timezone: Europe/Berlin
+  currency: "$"
+  summary: >
+    Window {from_date} to {to_date}: revenue {total_revenue} across
+    {order_count} orders.
+parameters:
+  from_date: "2025-06-01"
+  to_date: "2025-06-30"
+sources:
+  - name: sales
+    type: csv
+    path: ../data/synthetic_sales.csv
+    expected_columns: [date, region, product, quantity, unit_price, revenue]
+processing:
+  - dataset: sales
+    output: windowed
+    steps:
+      - op: data_quality
+        rules:
+          - {column: revenue, check: not_null}
+          - {column: revenue, check: range, min: 0}
+          - {column: quantity, check: type, as: int, on_error: coerce}
+      - {op: filter, column: date, operator: ">=", value: "${params.from_date}"}
+      - {op: filter, column: date, operator: "<=", value: "${params.to_date}"}
+metrics:
+  - {name: total_revenue, label: Window revenue, dataset: windowed,
+     aggregation: sum, column: revenue, format: currency}
+  - {name: order_count, label: Orders, dataset: windowed,
+     aggregation: count, format: integer}
+sections:
+  - {type: metrics, title: Key metrics}
+  - type: chart
+    title: Revenue by region
+    dataset: windowed
+    chart: {type: bar, x: region, y: revenue}
+  - {type: table, title: Orders in window, dataset: windowed, max_rows: 25}
+exports:
+  output_dir: ../reports
+  filename: monthly-sales-${params.from_date}-${params.to_date}
+  formats: [pdf, html, xlsx]

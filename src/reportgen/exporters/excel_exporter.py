@@ -24,12 +24,36 @@ _HEADER_FILL = PatternFill("solid", fgColor="2F4B7C")
 _HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
 _TITLE_FONT = Font(bold=True, size=14)
 _LABEL_FONT = Font(color="5A5A5A", size=9)
-_METRIC_FORMATS = {
-    "currency": '"$"#,##0.00',
-    "percent": "0.00%",
-    "integer": "#,##0",
-    "number": "#,##0.00",
-}
+
+
+def _metric_format(number_format: str, decimals: int, currency: str) -> str:
+    """Excel number format honoring the metric's configured precision
+    and the report's currency."""
+    decimals = max(0, int(decimals))
+    fraction = ("." + "0" * decimals) if decimals else ""
+    if number_format == "currency":
+        safe_currency = currency.replace('"', "")
+        return f'"{safe_currency}"#,##0{fraction}'
+    if number_format == "percent":
+        return f"0{fraction}%"
+    if number_format == "integer":
+        return "#,##0"
+    return f"#,##0{fraction}"
+
+
+def _write_text_block(sheet, row: int, heading: str, text: str) -> int:
+    """Write a heading plus wrapped text; return the next free row."""
+    sheet.cell(row=row, column=1, value=heading).font = Font(bold=True)
+    row += 1
+    lines = [part for part in str(text).split("\n") if part.strip()] or [str(text)]
+    for line in lines:
+        sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+        cell = sheet.cell(row=row, column=1, value=excel_safe_value(line))
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+        estimated_lines = max(1, len(line) // 110 + 1)
+        sheet.row_dimensions[row].height = min(180, 15 * estimated_lines)
+        row += 1
+    return row + 1
 
 
 def _to_excel(value):
@@ -129,10 +153,22 @@ def write_excel(document: ReportDocument, path: Path) -> None:
             for metric in document.metrics:
                 summary.cell(row=row, column=1, value=excel_safe_value(metric.label))
                 value_cell = summary.cell(row=row, column=2, value=metric.value)
-                value_cell.number_format = _METRIC_FORMATS.get(metric.number_format, "General")
+                value_cell.number_format = _metric_format(
+                    metric.number_format, metric.decimals, document.currency
+                )
                 summary.cell(row=row, column=3, value=excel_safe_value(metric.dataset))
                 row += 1
             row += 1
+
+        # Parity with HTML/PDF: text sections and methodology are part
+        # of the deliverable in every format.
+        for section in document.sections:
+            if section.kind == "text" and (section.text or section.description):
+                row = _write_text_block(
+                    summary, row, section.title, section.text or section.description or ""
+                )
+        if document.methodology:
+            row = _write_text_block(summary, row, "Methodology", document.methodology)
 
         summary.cell(row=row, column=1, value="Sources").font = Font(bold=True)
         row += 1

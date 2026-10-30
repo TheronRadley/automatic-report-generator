@@ -79,9 +79,23 @@ def aggregate_value(frame: pd.DataFrame, aggregation: str, column: str | None) -
         return float(series.count())
     if agg == "nunique":
         return float(series.nunique(dropna=True))
+    # Same policy as grouped aggregation: numeric-looking strings coerce,
+    # anything else is an explicit error instead of a silently partial
+    # result over the coercible subset.
     numeric = pd.to_numeric(series, errors="coerce")
+    bad_mask = numeric.isna() & series.notna()
+    if bool(bad_mask.any()):
+        examples = series[bad_mask].astype(str).unique()[:3].tolist()
+        raise ProcessingError(
+            f"Aggregation '{aggregation}': column '{column}' has "
+            f"{int(bad_mask.sum())} value(s) that are not numeric (e.g. {examples}). "
+            "Convert or clean the column first."
+        )
     if numeric.notna().sum() == 0 and agg != "sum":
         return math.nan
+    if agg == "sum" and pd.api.types.is_integer_dtype(numeric):
+        # Exact Python-int sum: fixed-width numpy sums overflow silently.
+        return float(numeric.astype(object).sum())
     result = getattr(numeric, agg)()
     try:
         return float(result)
