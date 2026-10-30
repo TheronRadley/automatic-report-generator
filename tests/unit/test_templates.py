@@ -94,3 +94,19 @@ exports:
 """)
     with pytest.raises(Exception, match="required columns|missing"):
         run_report(config, formats=["html"])
+
+
+def test_general_template_text_only_dataset(write_config, tmp_path):
+    """#14: the general template must not fail on text-only data."""
+    csv = tmp_path / "text.csv"
+    csv.write_text("name,city\nAna,Berlin\nBen,Paris\n", encoding="utf-8")
+    config = write_config(
+        f"""
+version: 1
+report: {{title: Text Only, template: general}}
+sources: [{{name: people, type: csv, path: {csv}}}]
+exports: {{output_dir: {tmp_path / "out"}, filename: textonly, overwrite: true}}
+"""
+    )
+    outputs = run_report(config, formats=["html"])
+    assert "Text Only" in outputs[0].read_text(encoding="utf-8")

@@ -470,6 +470,32 @@ def _operations_defaults(primary, _frames):
 def _general_defaults(primary, frames):
     frame = frames.get(primary, pd.DataFrame())
     numeric = [c for c in frame.columns if pd.api.types.is_numeric_dtype(frame[c])]
+    if not numeric:
+        # Text-only dataset: describe/histogram are meaningless. Emit a
+        # clean records-only report instead of failing in `describe`.
+        return (
+            [],
+            [
+                {
+                    "name": "row_count",
+                    "label": "Records",
+                    "dataset": primary,
+                    "aggregation": "count",
+                    "format": "integer",
+                },
+            ],
+            [
+                {"title": "Key metrics", "type": "metrics"},
+                {
+                    "title": "Data",
+                    "type": "table",
+                    "dataset": primary,
+                    "max_rows": 50,
+                    "description": "This dataset has no numeric columns, so "
+                    "summary statistics do not apply.",
+                },
+            ],
+        )
     pipelines = [
         {
             "dataset": primary,

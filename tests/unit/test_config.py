@@ -106,3 +106,139 @@ def test_unsupported_suffix(tmp_path):
     path.write_text("version=1", encoding="utf-8")
     with pytest.raises(ConfigError, match="Unsupported"):
         load_config(path)
+
+
+# ---------------------------------------------------------------- typed schemas (#13)
+
+
+def test_step_unknown_parameter_rejected(write_config):
+    text = (
+        BASE
+        + """
+processing:
+  - dataset: d
+    steps:
+      - {op: sort, columns: [a], ascendingg: false}
+"""
+    )
+    with pytest.raises(ConfigError, match="ascendingg"):
+        load_config(write_config(text))
+
+
+def test_step_wrong_parameter_type_rejected(write_config):
+    text = (
+        BASE
+        + """
+processing:
+  - dataset: d
+    steps:
+      - {op: sort, columns: [a], ascending: "yes"}
+"""
+    )
+    with pytest.raises(ConfigError, match="ascending"):
+        load_config(write_config(text))
+
+
+def test_step_missing_required_parameter_rejected(write_config):
+    text = (
+        BASE
+        + """
+processing:
+  - dataset: d
+    steps:
+      - {op: drop_columns}
+"""
+    )
+    with pytest.raises(ConfigError, match="requires parameter 'columns'"):
+        load_config(write_config(text))
+
+
+def test_unknown_filter_operator_rejected_at_load(write_config):
+    text = (
+        BASE
+        + """
+processing:
+  - dataset: d
+    steps:
+      - {op: filter, conditions: [{column: a, near: 3}]}
+"""
+    )
+    with pytest.raises(ConfigError, match="near"):
+        load_config(write_config(text))
+
+
+def test_unknown_source_option_rejected(write_config):
+    text = """
+version: 1
+report: {title: T, template: general}
+sources:
+  - {name: d, type: csv, path: data.csv, options: {sep: ;}}
+"""
+    with pytest.raises(ConfigError, match="sep"):
+        load_config(write_config(text))
+
+
+def test_out_of_bounds_source_option_rejected(write_config):
+    text = """
+version: 1
+report: {title: T, template: general}
+sources:
+  - {name: d, type: csv, path: data.csv, options: {max_rows: 0}}
+"""
+    with pytest.raises(ConfigError, match="max_rows"):
+        load_config(write_config(text))
+
+
+def test_currency_and_timezone_validated(write_config):
+    bad_tz = """
+version: 1
+report: {title: T, template: general, timezone: Mars/Olympus}
+sources: [{name: d, type: csv, path: data.csv}]
+"""
+    with pytest.raises(ConfigError, match="timezone"):
+        load_config(write_config(bad_tz))
+    ok = """
+version: 1
+report: {title: T, template: general, timezone: Europe/Berlin, currency: "€"}
+sources: [{name: d, type: csv, path: data.csv}]
+"""
+    config, _ = load_config(write_config(ok, "ok.yaml"))
+    assert config.report.timezone == "Europe/Berlin"
+    assert config.report.currency == "€"
+
+
+def test_parameters_must_be_simple_scalars(write_config):
+    text = BASE + "parameters: {nested: {a: 1}}\n"
+    with pytest.raises(ConfigError, match="scalar"):
+        load_config(write_config(text))
+
+
+def test_template_default_outputs_resolve_references(write_config):
+    # No processing section: the sales template's default pipelines
+    # create monthly_summary/regional_summary, so referencing them in
+    # an explicit section must validate at load time (#13).
+    text = """
+version: 1
+report: {title: Sales, template: sales}
+sources:
+  - {name: sales, type: csv, path: sales.csv}
+metrics:
+  - {name: total_revenue, dataset: sales, aggregation: sum, column: revenue}
+sections:
+  - {type: table, title: Monthly, dataset: monthly_revenue}
+"""
+    config, _ = load_config(write_config(text))
+    assert config.sections[0].dataset == "monthly_revenue"
+
+
+def test_unknown_dataset_with_template_defaults_still_rejected(write_config):
+    text = """
+version: 1
+report: {title: Sales, template: sales}
+sources:
+  - {name: sales, type: csv, path: sales.csv}
+sections:
+  - {type: table, title: Nope, dataset: never_created}
+"""
+    with pytest.raises(ConfigError, match="never_created"):
+        load_config(write_config(text))

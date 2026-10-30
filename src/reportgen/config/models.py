@@ -58,6 +58,32 @@ class ReportMeta(_Strict):
     summary: str | None = None
     methodology: str | None = None
     footer: str | None = None
+    # Display currency symbol/code used by the currency number format.
+    currency: str = "$"
+    # IANA timezone for generation timestamps, {date} filenames, and
+    # relative date-range parameters (e.g. "Europe/Paris").
+    timezone: str = "UTC"
+
+    @field_validator("currency")
+    @classmethod
+    def _check_currency(cls, value: str) -> str:
+        value = str(value).strip()
+        if not value or len(value) > 4:
+            raise ValueError("currency must be 1-4 characters (e.g. '$', '€', 'USD').")
+        return value
+
+    @field_validator("timezone")
+    @classmethod
+    def _check_timezone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(str(value))
+        except (ZoneInfoNotFoundError, ValueError, KeyError) as exc:
+            raise ValueError(
+                f"Unknown timezone {value!r}. Use an IANA name like 'UTC' or 'Europe/Paris'."
+            ) from exc
+        return str(value)
 
 
 class SourceConfig(_Strict):
@@ -89,20 +115,26 @@ class SourceConfig(_Strict):
 
     @model_validator(mode="after")
     def _check_location(self) -> SourceConfig:
-        file_types = {"csv", "tsv", "excel", "json", "jsonl", "sqlite"}
+        file_types = {"csv", "tsv", "excel", "json", "jsonl"}
         if self.type in file_types and not self.path and not self.url:
             raise ValueError(f"Source '{self.name}' ({self.type}) requires 'path'.")
+        if self.type == "sqlite" and not (self.path or self.url or self.url_env):
+            raise ValueError(f"Source '{self.name}' (sqlite) requires 'path', 'url', or 'url_env'.")
         if self.type in {"postgres", "database"} and not (self.url or self.url_env):
             raise ValueError(f"Source '{self.name}' ({self.type}) requires 'url' or 'url_env'.")
         if self.type in {"sqlite", "postgres", "database"} and not (self.query or self.table):
             raise ValueError(
                 f"Database source '{self.name}' requires a read-only 'query' or a 'table'."
             )
+        from reportgen.sources.options import validate_source_options
+
+        validate_source_options(self.type, self.name, self.options)
         return self
 
 
 class StepConfig(BaseModel):
-    """One transformation step. Extra keys are the step's parameters."""
+    """One transformation step. Extra keys are the step's parameters,
+    validated against the typed per-op schema in processing.schema."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -113,6 +145,13 @@ class StepConfig(BaseModel):
         data = self.model_dump()
         data.pop("op", None)
         return data
+
+    @model_validator(mode="after")
+    def _validate_typed_params(self) -> StepConfig:
+        from reportgen.processing.schema import validate_step_params
+
+        validate_step_params(self.op, self.params)
+        return self
 
 
 class PipelineConfig(_Strict):
@@ -192,6 +231,12 @@ class ScheduleConfig(_Strict):
 class ReportConfig(_Strict):
     version: int = 1
     report: ReportMeta = Field(default_factory=ReportMeta)
+    # Reusable run parameters. Values are scalars; date tokens such as
+    # "month_start", "previous_month_end", "today", "days_ago:30" are
+    # resolved at run time in report.timezone. Reference them inside
+    # scalar config values as ${params.name} (source params, filter
+    # values, summary text, filenames) or override with --param.
+    parameters: dict[str, Any] = Field(default_factory=dict)
     sources: list[SourceConfig] = Field(min_length=1)
     processing: list[PipelineConfig] = Field(default_factory=list)
     metrics: list[MetricConfig] = Field(default_factory=list)
@@ -199,6 +244,19 @@ class ReportConfig(_Strict):
     exports: ExportConfig = Field(default_factory=ExportConfig)
     options: OptionsConfig = Field(default_factory=OptionsConfig)
     schedule: ScheduleConfig | None = None
+
+    @field_validator("parameters")
+    @classmethod
+    def _check_parameters(cls, value: dict[str, Any]) -> dict[str, Any]:
+        for key, item in (value or {}).items():
+            if not str(key).replace("_", "").isalnum():
+                raise ValueError(f"Parameter name {key!r} must be a simple identifier.")
+            if not isinstance(item, (str, int, float, bool)):
+                raise ValueError(
+                    f"Parameter '{key}' must be a scalar (string/number/bool), "
+                    f"got {type(item).__name__}."
+                )
+        return value
 
     @field_validator("version")
     @classmethod
@@ -216,6 +274,19 @@ class ReportConfig(_Strict):
             dupes = sorted({n for n in names if names.count(n) > 1})
             raise ValueError(f"Duplicate source names: {', '.join(dupes)}")
         known = set(names) | {p.output for p in self.processing if p.output}
+        if not self.processing:
+            # Template defaults will supply pipelines at build time, so
+            # sections/metrics may legitimately reference the datasets
+            # those default pipelines produce. Resolve the defaults
+            # first, then check references against the full picture.
+            try:
+                from reportgen.reports.templates import get_template
+
+                template = get_template(self.report.template)
+                default_pipelines, _m, _s = template.defaults(names[0], {})
+                known |= {p["output"] for p in default_pipelines if p.get("output")}
+            except Exception:
+                pass  # unknown template is reported by the builder/CLI
         for metric in self.metrics:
             if metric.dataset not in known:
                 raise ValueError(
